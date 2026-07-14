@@ -612,6 +612,8 @@ class PokerGame {
             this.message = `${winner.name} 获胜！所有人弃牌，赢得 ${pot} 积分`;
             this.recordHandResult(winner.isHuman, pot);
             this.notifyState();
+            // 1.5 秒后自动开始下一局
+            setTimeout(() => { if (this.phase === 'hand_over') this.nextHand(); }, 1500);
             return;
         }
 
