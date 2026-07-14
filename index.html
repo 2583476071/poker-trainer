@@ -159,6 +159,10 @@ function render(state) {
     document.getElementById('handNum').textContent = `第 ${state.handNumber} 手`;
     document.getElementById('gameMsg').textContent = state.message;
 
+    // 摊牌阶段标记（手机端用于显示所有牌）
+    const isShowdown = state.phase === 'showdown' || state.phase === 'hand_over';
+    tableArea.classList.toggle('showdown-phase', isShowdown);
+
     // 玩家座位
     for (let i = 0; i < 9; i++) {
         const p = state.players[i];

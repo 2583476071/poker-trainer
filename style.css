@@ -611,8 +611,10 @@ body {
         background: rgba(0,0,0,0.9);
     }
 
-    /* 隐藏 AI 迷你手牌，只保留人类的 */
+    /* 游戏进行中隐藏 AI 迷你手牌，摊牌时全部显示 */
     .player-cards { display: none; }
+    #tableArea.showdown-phase .player-cards { display: flex !important; }
+    /* 人类的迷你手牌始终显示 */
     #playerCards0 { display: flex !important; }
     #playerCards0 .mini-card { width: 24px; height: 32px; font-size: 8px; }
 
