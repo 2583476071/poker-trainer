@@ -13,6 +13,7 @@
     <!-- 顶栏 -->
     <div id="topBar">
         <span class="hand-num" id="handNum">准备开始</span>
+        <span class="stats-panel" id="statsPanel"></span>
         <span class="game-msg" id="gameMsg">欢迎使用德州扑克AI训练器</span>
     </div>
 
@@ -53,6 +54,28 @@
             <span id="sliderLabel">+50%</span>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
+        </div>
+    </div>
+</div>
+
+<!-- 昵称弹窗 -->
+<div id="nicknameOverlay">
+    <div id="nicknameBox">
+        <h2>🎰 欢迎来到德州扑克</h2>
+        <p>输入昵称开始游戏</p>
+        <input type="text" id="nicknameInput" placeholder="你的昵称" maxlength="12" autocomplete="off">
+        <button id="btnStartGame">开始游戏</button>
+    </div>
+</div>
+
+<!-- 存档恢复弹窗 -->
+<div id="resumeOverlay" class="hidden">
+    <div id="resumeBox">
+        <h2>📂 检测到未完成的牌局</h2>
+        <p id="resumeInfo"></p>
+        <div class="resume-buttons">
+            <button id="btnResume">继续上次牌局</button>
+            <button id="btnNewGame">开始新牌局</button>
         </div>
     </div>
 </div>
@@ -363,6 +386,94 @@ document.getElementById('btnNextHand').addEventListener('click', () => {
     game.nextHand();
 });
 
+// ===== 战绩面板更新 =====
+function updateStatsPanel() {
+    const panel = document.getElementById('statsPanel');
+    if (!game.account) { panel.innerHTML = ''; return; }
+    const s = game.account.stats;
+    const profitColor = s.profit >= 0 ? '#4fc3f7' : '#e74c3c';
+    const profitSign = s.profit >= 0 ? '+' : '';
+    panel.innerHTML = `<span style="color:#f0c040;">${game.account.nickname}</span>
+        <span style="color:${profitColor}; margin-left:8px;">${profitSign}${s.profit}</span>
+        <span style="color:#aaa; margin-left:6px; font-size:10px;">${s.totalHands}手 ${s.winRate}%胜</span>`;
+}
+
+// ===== 昵称流程 =====
+function initNickname() {
+    const overlay = document.getElementById('nicknameOverlay');
+    const input = document.getElementById('nicknameInput');
+    const btn = document.getElementById('btnStartGame');
+
+    const existing = PokerGame.loadAccount();
+    if (existing) {
+        // 已有账号 → 直接进
+        game.setNickname(existing.nickname);
+        overlay.style.display = 'none';
+        checkSavedGame();
+        return;
+    }
+
+    // 新用户 → 显示昵称输入
+    overlay.style.display = 'flex';
+    btn.addEventListener('click', () => {
+        const name = input.value.trim() || '玩家';
+        game.setNickname(name);
+        overlay.style.display = 'none';
+        checkSavedGame();
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btn.click();
+    });
+}
+
+// ===== 存档恢复 =====
+function checkSavedGame() {
+    const save = PokerGame.loadGame();
+    if (!save) { startGame(false); return; }
+
+    const overlay = document.getElementById('resumeOverlay');
+    const info = document.getElementById('resumeInfo');
+    const mins = Math.round((Date.now() - save.timestamp) / 60000);
+    info.textContent = `第 ${save.handNumber} 手 · 底池 ${save.pot} · ${mins} 分钟前`;
+
+    overlay.classList.remove('hidden');
+    document.getElementById('btnResume').onclick = () => {
+        overlay.classList.add('hidden');
+        startGame(true);
+    };
+    document.getElementById('btnNewGame').onclick = () => {
+        overlay.classList.add('hidden');
+        PokerGame.clearSave();
+        startGame(false);
+    };
+}
+
+// ===== 启动游戏 =====
+function startGame(resume) {
+    try {
+        initSeats();
+        if (resume) {
+            const save = PokerGame.loadGame();
+            if (save) {
+                game.init(); // 初始化基本结构
+                game.restoreFromSave(save);
+                updateStatsPanel();
+                console.log('Game restored from save. Phase:', game.phase, 'Hand:', game.handNumber);
+                document.getElementById('gameMsg').textContent = '牌局已恢复 — 轮到你了';
+                return;
+            }
+        }
+        game.init();
+        updateStatsPanel();
+        console.log('Game initialized. Phase:', game.phase, 'Hand:', game.handNumber);
+        document.getElementById('gameMsg').textContent = '游戏已启动 — 观察AI行动中...';
+    } catch(e) {
+        document.getElementById('gameMsg').textContent = '启动错误: ' + e.message;
+        document.getElementById('gameMsg').style.color = '#e74c3c';
+        console.error(e);
+    }
+}
+
 // ===== 错误处理 =====
 window.onerror = function(msg, url, line) {
     document.getElementById('gameMsg').textContent = 'JS错误: ' + msg + ' (行' + line + ')';
@@ -374,16 +485,14 @@ try {
     game.onStateChange = function(state) {
         try {
             render(state);
+            updateStatsPanel();
         } catch(e) {
             document.getElementById('gameMsg').textContent = '渲染错误: ' + e.message;
             document.getElementById('gameMsg').style.color = '#e74c3c';
             console.error(e);
         }
     };
-    initSeats();
-    game.init();
-    console.log('Game initialized. Phase:', game.phase, 'Hand:', game.handNumber);
-    document.getElementById('gameMsg').textContent = '游戏已启动 — 观察AI行动中...';
+    initNickname();
 } catch(e) {
     document.getElementById('gameMsg').textContent = '启动错误: ' + e.message;
     document.getElementById('gameMsg').style.color = '#e74c3c';

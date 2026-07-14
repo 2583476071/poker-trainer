@@ -288,6 +288,8 @@ class PokerGame {
         this.onStateChange = null;  // UI 回调
         this.pendingHumanAction = null; // Promise resolve for human input
         this.eliminatedPlayers = [];
+        this.account = null;           // { nickname, stats }
+        this.humanStats = null;        // 本局追踪: { folds, raises, calls, startingChips }
     }
 
     /** 初始化游戏：1 真人 + 8 AI */
@@ -392,6 +394,7 @@ class PokerGame {
         }
 
         // 如果当前玩家不是真人，自动推进到真人或本轮结束
+        this.initHumanStats();
         this.message = '新一局开始！你是' + (this.players[0].isDealer ? '庄家(D)' : (this.players[0].isSmallBlind ? '小盲(SB)' : (this.players[0].isBigBlind ? '大盲(BB)' : '普通位置')));
         this.notifyState();
 
@@ -457,6 +460,13 @@ class PokerGame {
     doAction(playerIndex, action, raiseMultiplier) {
         if (playerIndex !== this.currentPlayerIndex) return false;
         const p = this.players[playerIndex];
+
+        // 追踪真人行动
+        if (playerIndex === 0 && this.humanStats) {
+            if (action === 'fold') this.humanStats.folds++;
+            if (action === 'raise') this.humanStats.raises++;
+            if (action === 'call') this.humanStats.calls++;
+        }
 
         switch (action) {
             case 'fold': this.doFold(p); break;
@@ -586,6 +596,7 @@ class PokerGame {
             winner.chips += pot;
             this.winners = [{ player: winner, hand: null, pot }];
             this.message = `${winner.name} 获胜！所有人弃牌，赢得 ${pot} 积分`;
+            this.recordHandResult(winner.isHuman, pot);
             this.notifyState();
             return;
         }
@@ -734,6 +745,8 @@ class PokerGame {
             .map(w => `${w.player.name} (+${w.pot}) ${w.hand ? w.hand.name : ''}`)
             .join(' / ');
         this.message = winSummary || '摊牌完成';
+        const humanWon = totalWon[0] > 0;
+        this.recordHandResult(humanWon, totalWon[0] || 0);
         this.notifyState();
     }
 
@@ -1281,6 +1294,9 @@ class PokerGame {
     }
 
     notifyState() {
+        if (this.phase !== 'idle' && this.phase !== 'game_over' && this.phase !== 'hand_over') {
+            PokerGame.saveGame(this);
+        }
         if (this.onStateChange) {
             this.onStateChange(this.getState());
         }
@@ -1298,6 +1314,146 @@ class PokerGame {
     nextHand() {
         if (this.phase !== 'hand_over') return;
         this.startNewHand();
+    }
+
+    // ========== 战绩追踪 & 本地存档 ==========
+
+    /** 记录一手牌的结果 */
+    recordHandResult(humanWon, potAmount) {
+        if (!this.account) return;
+        const s = this.account.stats;
+        s.totalHands++;
+        if (humanWon) {
+            s.handsWon++;
+            s.profit += (potAmount || 0);
+            s.biggestPot = Math.max(s.biggestPot, potAmount || 0);
+        } else {
+            s.handsLost++;
+            const lost = this.humanStats ? (this.humanStats.startingChips - this.players[0].chips) : 0;
+            s.profit -= Math.max(0, lost);
+        }
+        // 记录行动统计
+        if (this.humanStats) {
+            s.totalFolds  += this.humanStats.folds;
+            s.totalRaises += this.humanStats.raises;
+            s.totalCalls  += this.humanStats.calls;
+        }
+        // 更新胜率百分比
+        s.winRate = s.totalHands > 0 ? Math.round((s.handsWon / s.totalHands) * 100) : 0;
+        // 保存战绩
+        PokerGame.saveAccount(this.account);
+    }
+
+    /** 初始化本局人类追踪 */
+    initHumanStats() {
+        this.humanStats = {
+            folds: 0, raises: 0, calls: 0,
+            startingChips: this.players[0].chips
+        };
+    }
+
+    /** 设置账号昵称 */
+    setNickname(name) {
+        this.account = PokerGame.loadAccount() || {
+            nickname: name,
+            stats: {
+                totalHands: 0, handsWon: 0, handsLost: 0,
+                profit: 0, biggestPot: 0, winRate: 0,
+                totalFolds: 0, totalRaises: 0, totalCalls: 0
+            }
+        };
+        this.account.nickname = name;
+        PokerGame.saveAccount(this.account);
+    }
+
+    // ===== 静态存储方法 =====
+
+    static saveAccount(account) {
+        try { localStorage.setItem('pt_account', JSON.stringify(account)); } catch(e) {}
+    }
+
+    static loadAccount() {
+        try {
+            const raw = localStorage.getItem('pt_account');
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+    }
+
+    static saveGame(game) {
+        try {
+            const save = {
+                timestamp: Date.now(),
+                handNumber: game.handNumber,
+                phase: game.phase,
+                players: game.players.map(p => ({
+                    id: p.id, name: p.name, isHuman: p.isHuman,
+                    chips: p.chips, isEliminated: game.eliminatedPlayers.includes(p.id),
+                    aiProfile: p.aiProfile
+                })),
+                dealerIndex: game.dealerIndex,
+                handCards: game.players.map(p => p.handCards),
+                communityCards: game.communityCards,
+                currentBetLevel: game.currentBetLevel,
+                currentPlayerIndex: game.currentPlayerIndex,
+                pot: totalPot(game.players),
+                message: game.message,
+                preflopRaiserIndex: game.preflopRaiserIndex
+            };
+            localStorage.setItem('pt_save', JSON.stringify(save));
+        } catch(e) {}
+    }
+
+    static loadGame() {
+        try {
+            const raw = localStorage.getItem('pt_save');
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+    }
+
+    static clearSave() {
+        localStorage.removeItem('pt_save');
+    }
+
+    /** 从存档恢复游戏 */
+    restoreFromSave(save) {
+        this.handNumber = save.handNumber || 1;
+        this.phase = save.phase || 'preflop';
+        this.dealerIndex = save.dealerIndex;
+        this.currentBetLevel = save.currentBetLevel || BIG_BLIND;
+        this.currentPlayerIndex = save.currentPlayerIndex;
+        this.preflopRaiserIndex = save.preflopRaiserIndex || -1;
+        this.communityCards = save.communityCards || [];
+        this.message = save.message || '游戏已恢复';
+        this.eliminatedPlayers = [];
+
+        // 恢复玩家状态
+        for (let i = 0; i < this.players.length; i++) {
+            const sp = save.players[i];
+            if (!sp) continue;
+            this.players[i].chips = sp.chips;
+            this.players[i].handCards = save.handCards[i] || [];
+            this.players[i].isFolded = false;
+            this.players[i].isAllIn = false;
+            this.players[i].currentBet = 0;
+            this.players[i].totalBetThisHand = 0;
+            this.players[i].needsToAct = (i === save.currentPlayerIndex && this.phase !== 'hand_over');
+            this.players[i].hasActedThisRound = false;
+            this.players[i].isDealer = (i === save.dealerIndex);
+            if (sp.isEliminated) this.eliminatedPlayers.push(sp.id);
+        }
+
+        // 设置盲注标记
+        const sbIdx = this.nextActivePlayerIndex(this.dealerIndex);
+        const bbIdx = this.nextActivePlayerIndex(sbIdx);
+        this.players[this.dealerIndex].isDealer = true;
+        if (!this.players[sbIdx].isEliminated) this.players[sbIdx].isSmallBlind = true;
+        if (!this.players[bbIdx].isEliminated) this.players[bbIdx].isBigBlind = true;
+
+        // 存档不包含完整牌堆，从安全状态重启
+        this.deck = createDeck();
+        this.initHumanStats();
+        this.notifyState();
+        this.autoAdvance();
     }
 }
 
