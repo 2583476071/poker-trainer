@@ -323,11 +323,14 @@ class PokerGame {
             p.chips = 0;
         }
 
+        // 更新盲注级别（掉人后翻倍）
+        this.updateBlinds();
+
         // 重置状态
         this.communityCards = [];
         this.phase = 'preflop';
-        this.currentBetLevel = BIG_BLIND;
-        this.minRaise = BIG_BLIND;
+        this.currentBetLevel = this.bigBlindAmount;
+        this.minRaise = this.bigBlindAmount;
         this.preflopRaiserIndex = -1;
         this.winners = [];
         this.message = '';
@@ -383,7 +386,7 @@ class PokerGame {
         // 第一个行动的是大盲注之后的人（preflop）
         const firstToAct = this.nextActivePlayerIndex(bbIndex);
         this.currentPlayerIndex = firstToAct;
-        this.currentBetLevel = BIG_BLIND;
+        this.currentBetLevel = this.bigBlindAmount;
 
         // 设置所有活跃玩家"待行动"
         for (const p of this.players) {
@@ -395,7 +398,13 @@ class PokerGame {
 
         // 如果当前玩家不是真人，自动推进到真人或本轮结束
         this.initHumanStats();
-        this.message = '新一局开始！你是' + (this.players[0].isDealer ? '庄家(D)' : (this.players[0].isSmallBlind ? '小盲(SB)' : (this.players[0].isBigBlind ? '大盲(BB)' : '普通位置')));
+        // 盲注升级提示
+        if (this.blindIncreased) {
+            this.message = `⚠️ 盲注升级！${this.smallBlindAmount}/${this.bigBlindAmount} — 剩余 ${9 - this.eliminatedPlayers.length} 人`;
+            this.blindIncreased = false;
+        } else {
+            this.message = '新一局开始！你是' + (this.players[0].isDealer ? '庄家(D)' : (this.players[0].isSmallBlind ? '小盲(SB)' : (this.players[0].isBigBlind ? '大盲(BB)' : '普通位置')));
+        }
         this.notifyState();
 
         // 自动推进直到真人需要行动
@@ -586,7 +595,7 @@ class PokerGame {
             p.hasActedThisRound = false;
         }
         this.currentBetLevel = 0;
-        this.minRaise = BIG_BLIND;
+        this.minRaise = this.bigBlindAmount;
 
         // 如果只剩一个活跃玩家 → 直接获胜
         if (this.countActivePlayers() === 1) {
@@ -1315,6 +1324,20 @@ class PokerGame {
     nextHand() {
         if (this.phase !== 'hand_over') return;
         this.startNewHand();
+    }
+
+    /** 根据淘汰人数更新盲注级别 */
+    updateBlinds() {
+        const eliminated = this.eliminatedPlayers.length;
+        // 前2人出局不翻倍，第3人开始每次翻倍
+        const levels = Math.max(0, eliminated - 2);
+        const multiplier = Math.pow(2, levels);
+        const oldBig = this.bigBlindAmount;
+        this.smallBlindAmount = SMALL_BLIND * multiplier;
+        this.bigBlindAmount  = BIG_BLIND * multiplier;
+        if (this.bigBlindAmount !== oldBig && this.handNumber > 1) {
+            this.blindIncreased = true;
+        }
     }
 
     // ========== 战绩追踪 & 本地存档 ==========
