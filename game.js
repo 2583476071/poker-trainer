@@ -660,6 +660,7 @@ class PokerGame {
             this.winners = [{ player: activePlayers[0], hand: null, pot: total }];
             this.phase = 'hand_over';
             this.message = `${activePlayers[0].name} 获胜！赢得 ${total} 积分`;
+            this.recordHandResult(activePlayers[0].isHuman, total);
             this.notifyState();
             return;
         }
