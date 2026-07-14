@@ -1,0 +1,717 @@
+/* ================================================================
+ * 德州扑克 AI 训练器 — 样式
+ * 简洁、深色主题、牌桌风格 — 桌面 + 平板 + 手机三端适配
+ * ================================================================ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ===== 工具类 ===== */
+.hidden { display: none !important; }
+
+body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+}
+
+#app {
+    width: 1200px;
+    min-height: 800px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* ===== 顶栏 ===== */
+#topBar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    color: #888;
+    font-size: 13px;
+}
+
+#topBar .hand-num { color: #aaa; }
+
+#topBar .game-msg {
+    color: #f0c040;
+    font-size: 14px;
+    font-weight: bold;
+    flex: 1;
+    text-align: center;
+}
+
+/* ===== 牌桌主体 ===== */
+#tableArea {
+    position: relative;
+    width: 1100px;
+    height: 580px;
+    background: radial-gradient(ellipse, #1b5e20 0%, #0d3b0d 60%, #0a1f0a 100%);
+    border-radius: 220px;
+    border: 6px solid #4a3728;
+    box-shadow: 0 0 60px rgba(0,0,0,0.5), inset 0 0 120px rgba(0,0,0,0.3);
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+/* ===== 荷官位 ===== */
+#dealerSpot {
+    position: absolute;
+    top: -35px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+#dealerSpot .dealer-icon {
+    width: 56px;
+    height: 56px;
+    background: rgba(0,0,0,0.6);
+    border: 2px solid rgba(240,192,64,0.4);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+}
+
+#dealerSpot .dealer-label {
+    font-size: 11px;
+    color: #f0c040;
+    font-weight: bold;
+    background: rgba(0,0,0,0.7);
+    padding: 2px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+/* ===== 公共牌区域 ===== */
+#communityCards {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+}
+
+#communityCards .card-placeholder {
+    width: 60px;
+    height: 84px;
+    border: 2px dashed rgba(255,255,255,0.15);
+    border-radius: 6px;
+}
+
+/* ===== 底池显示 ===== */
+#potDisplay {
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    transform: translate(-50%, 40px);
+    color: #f0c040;
+    font-size: 15px;
+    font-weight: bold;
+    z-index: 4;
+    text-shadow: 0 0 10px rgba(240,192,64,0.5);
+}
+
+/* ===== 玩家座位 ===== */
+.player-seat {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 6;
+}
+
+/*
+ * 桌面端座位布局（U 形环绕）:
+ *   荷官位于牌桌正上方（空位）
+ *   seat-0: 你 — 正下方中央
+ *   seat-1 ~ seat-4: AI — 右侧（上→下）
+ *   seat-5 ~ seat-8: AI — 左侧（下→上）
+ */
+
+#seat-0 { bottom: -40px; left: 50%; transform: translateX(-50%); }
+#seat-1 { top: 5%; right: 10%; }
+#seat-2 { top: 30%; right: -15px; }
+#seat-3 { bottom: 28%; right: -15px; }
+#seat-4 { bottom: 5%; right: 12%; }
+#seat-5 { bottom: 5%; left: 12%; }
+#seat-6 { bottom: 28%; left: -15px; }
+#seat-7 { top: 30%; left: -15px; }
+#seat-8 { top: 5%; left: 10%; }
+
+.player-info {
+    background: rgba(0,0,0,0.75);
+    border-radius: 10px;
+    padding: 6px 12px;
+    text-align: center;
+    min-width: 90px;
+    border: 2px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.player-info.current-turn {
+    border-color: #f0c040;
+    box-shadow: 0 0 15px rgba(240,192,64,0.4);
+}
+
+.player-info.folded  { opacity: 0.4; }
+.player-info.eliminated { opacity: 0.2; }
+
+.player-name {
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.player-name.human {
+    color: #4fc3f7;
+    font-size: 14px;
+}
+
+.player-chip {
+    font-size: 11px;
+    color: #f0c040;
+    margin-top: 2px;
+}
+
+.player-bet {
+    font-size: 10px;
+    color: #ff9800;
+    margin-top: 1px;
+}
+
+.player-badge {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 2px;
+}
+
+.badge-dealer { background: #fff; color: #000; }
+.badge-sb     { background: #4fc3f7; color: #000; }
+.badge-bb     { background: #e74c3c; color: #fff; }
+.badge-ai     { background: rgba(255,255,255,0.15); color: #aaa; font-size: 8px; }
+
+/* 玩家手牌（桌面上的迷你牌） */
+.player-cards {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+}
+
+.player-cards .mini-card {
+    width: 32px;
+    height: 44px;
+    background: #fff;
+    border-radius: 3px;
+    font-size: 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.player-cards .mini-card.red { color: #d32f2f; }
+.player-cards .mini-card.face-down {
+    background: #1565c0;
+    color: #fff;
+    font-size: 12px;
+}
+
+.seat-pos-label {
+    font-size: 9px;
+    color: #888;
+    margin-top: 2px;
+}
+
+/* ===== 卡牌组件 ===== */
+.card {
+    width: 60px;
+    height: 84px;
+    background: #fff;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    box-shadow: 1px 2px 6px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.card .rank { font-size: 20px; line-height: 1; }
+.card .suit { font-size: 22px; line-height: 1; }
+
+.card.red  { color: #d32f2f; }
+.card.black { color: #1a1a1a; }
+
+.card.face-down {
+    background: linear-gradient(135deg, #1565c0, #0d47a1);
+    color: #fff;
+}
+
+.card.face-down::after {
+    content: '♠';
+    font-size: 28px;
+    opacity: 0.3;
+}
+
+/* ===== 底部操作区 ===== */
+#actionBar {
+    width: 100%;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+#actionButtons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#actionButtons button {
+    display: inline-block;
+    padding: 10px 24px;
+    font-size: 15px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    min-width: 80px;
+}
+
+#actionButtons button:active { transform: scale(0.95); }
+
+#actionButtons button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-fold {
+    background: #c62828;
+    color: #fff;
+}
+.btn-fold:hover:not(:disabled) { background: #e53935; }
+
+.btn-check, .btn-call {
+    background: #2e7d32;
+    color: #fff;
+}
+.btn-check:hover:not(:disabled), .btn-call:hover:not(:disabled) { background: #43a047; }
+
+.btn-raise {
+    background: #e65100;
+    color: #fff;
+}
+.btn-raise:hover:not(:disabled) { background: #ff6d00; }
+
+.btn-allin {
+    background: #6a1b9a;
+    color: #fff;
+    font-size: 16px;
+    padding: 10px 32px;
+}
+.btn-allin:hover:not(:disabled) { background: #8e24aa; }
+
+.btn-next {
+    display: inline-block;
+    background: #f0c040;
+    color: #000;
+    font-size: 16px;
+    padding: 12px 32px;
+}
+.btn-next:hover { background: #ffd54f; }
+
+/* ===== 滑块 ===== */
+#raiseSlider {
+    width: 100px;
+    vertical-align: middle;
+}
+
+#sliderLabel {
+    color: #f0c040;
+    font-size: 13px;
+    min-width: 40px;
+}
+
+/* ===== 手牌展示区 ===== */
+#yourHand {
+    display: flex;
+    gap: 8px;
+}
+
+#yourHand .card {
+    width: 70px;
+    height: 98px;
+}
+
+#yourHand .card .rank { font-size: 24px; }
+#yourHand .card .suit { font-size: 26px; }
+
+/* ===== 你的信息 ===== */
+#yourInfo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+#yourChips {
+    font-size: 16px;
+    color: #f0c040;
+    font-weight: bold;
+}
+
+#yourBet {
+    font-size: 13px;
+    color: #ff9800;
+}
+
+/* ===== 结果弹窗 ===== */
+#resultOverlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+#resultBox {
+    background: #1e1e2e;
+    border: 2px solid #4a3728;
+    border-radius: 16px;
+    padding: 30px 40px;
+    text-align: center;
+    max-width: 500px;
+    margin: 0 16px;
+}
+
+#resultBox h2 {
+    font-size: 22px;
+    margin-bottom: 16px;
+}
+
+#resultBox .winner-list {
+    text-align: left;
+    margin: 12px 0;
+    font-size: 14px;
+    line-height: 2;
+}
+
+#resultBox .winner-list .won  { color: #f0c040; }
+#resultBox .winner-list .lost { color: #888; }
+
+#resultBox button {
+    margin-top: 16px;
+    padding: 12px 36px;
+    font-size: 16px;
+    font-weight: bold;
+    background: #f0c040;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+#resultBox button:hover { background: #ffd54f; }
+
+/* ===== 你的牌型提示 ===== */
+#handHint {
+    color: #aaa;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 2px;
+}
+
+
+/* ===================================================================
+ * 响应式断点 1: ≤1250px — 小桌面 / 大平板
+ * =================================================================== */
+@media (max-width: 1250px) {
+    #app { width: 100%; padding: 0 10px; min-height: auto; }
+    #tableArea { width: 96vw; height: 50vw; border-radius: 25vw; }
+    #dealerSpot .dealer-icon { width: 40px; height: 40px; font-size: 20px; }
+    #dealerSpot .dealer-label { font-size: 9px; }
+}
+
+
+/* ===================================================================
+ * 响应式断点 2: ≤768px — 平板竖屏
+ * =================================================================== */
+@media (max-width: 768px) {
+    #app { min-height: auto; }
+    #topBar { padding: 8px 10px; font-size: 11px; }
+    #topBar .game-msg { font-size: 12px; }
+
+    /* 牌桌 — aspect-ratio 自适应 */
+    #tableArea {
+        width: 94vw;
+        height: auto;
+        aspect-ratio: 1.35;
+        border-radius: 20vw;
+        border-width: 4px;
+        margin: 6px 0;
+        overflow: hidden;
+    }
+
+    /* 荷官缩小 */
+    #dealerSpot { top: -22px; }
+    #dealerSpot .dealer-icon { width: 34px; height: 34px; font-size: 18px; }
+    #dealerSpot .dealer-label { font-size: 8px; padding: 1px 6px; }
+
+    /* 座位信息精简 */
+    .player-info { padding: 4px 8px; min-width: 70px; border-radius: 6px; }
+    .player-name { font-size: 10px; }
+    .player-name.human { font-size: 12px; }
+    .player-chip { font-size: 9px; }
+    .player-bet  { font-size: 8px; }
+
+    /* 迷你手牌缩小 */
+    .player-cards .mini-card { width: 26px; height: 36px; font-size: 7px; }
+    .player-cards .mini-card.face-down { font-size: 10px; }
+
+    /* 公共牌缩小 */
+    .card { width: 48px; height: 67px; }
+    .card .rank { font-size: 16px; }
+    .card .suit { font-size: 18px; }
+    .card.face-down::after { font-size: 22px; }
+    #communityCards { gap: 5px; }
+    #communityCards .card-placeholder { width: 48px; height: 67px; }
+
+    /* 底池 */
+    #potDisplay { font-size: 13px; transform: translate(-50%, 30px); }
+
+    /* 手牌展示 */
+    #yourHand .card { width: 56px; height: 78px; }
+    #yourHand .card .rank { font-size: 20px; }
+    #yourHand .card .suit { font-size: 22px; }
+
+    /* 操作区 */
+    #actionBar { padding: 10px 12px; gap: 16px; }
+    #actionButtons button {
+        font-size: 13px;
+        padding: 8px 16px;
+        min-width: 64px;
+        min-height: 40px;
+        border-radius: 6px;
+    }
+    .btn-allin { font-size: 14px; padding: 8px 24px; }
+    .btn-next  { font-size: 14px; padding: 10px 24px; }
+    #raiseSlider { width: 80px; }
+    #sliderLabel { font-size: 11px; min-width: 34px; }
+
+    #yourChips { font-size: 14px; }
+    #yourBet   { font-size: 11px; }
+    #handHint  { font-size: 10px; }
+
+    /* 结果弹窗 */
+    #resultBox { max-width: 85vw; padding: 20px 24px; }
+    #resultBox h2 { font-size: 18px; }
+    #resultBox .winner-list { font-size: 12px; }
+    #resultBox button { font-size: 14px; padding: 10px 28px; }
+}
+
+
+/* ===================================================================
+ * 响应式断点 3: ≤480px — 手机竖屏
+ * =================================================================== */
+@media (max-width: 480px) {
+    #topBar { padding: 6px 8px; font-size: 10px; }
+    #topBar .game-msg { font-size: 11px; }
+
+    /* 牌桌 → 更圆的椭圆 */
+    #tableArea {
+        width: 92vw;
+        aspect-ratio: 1.1;
+        border-radius: 30vw;
+        border-width: 3px;
+        margin: 4px 0;
+    }
+
+    /* 荷官进一步缩小 */
+    #dealerSpot { top: -18px; }
+    #dealerSpot .dealer-icon { width: 30px; height: 30px; font-size: 16px; border-width: 1px; }
+    #dealerSpot .dealer-label { font-size: 7px; padding: 1px 5px; }
+
+    /* ---- 座位重排（围绕圆桌） ---- */
+    #seat-0 { bottom: -30px; left: 50%; transform: translateX(-50%); }
+    #seat-1 { top: 2%; right: 4%; }
+    #seat-2 { top: 24%; right: -10px; }
+    #seat-3 { bottom: 26%; right: -10px; }
+    #seat-4 { bottom: 2%; right: 6%; }
+    #seat-5 { bottom: 2%; left: 6%; }
+    #seat-6 { bottom: 26%; left: -10px; }
+    #seat-7 { top: 24%; left: -10px; }
+    #seat-8 { top: 2%; left: 4%; }
+
+    /* 座位极致精简 */
+    .player-info { padding: 3px 6px; min-width: 54px; border-radius: 5px; border-width: 1px; }
+    .player-name { font-size: 9px; }
+    .player-name.human { font-size: 10px; }
+    .player-chip { font-size: 8px; }
+    .player-bet  { font-size: 7px; }
+
+    /* 隐藏桌面上的 AI 迷你手牌，节省空间 */
+    .player-cards { display: none; }
+    /* 但保留你的座位上的手牌显示 */
+    #playerCards0 { display: flex !important; }
+    #playerCards0 .mini-card { width: 22px; height: 30px; font-size: 7px; }
+
+    /* 公共牌再缩小 */
+    .card { width: 40px; height: 56px; border-radius: 4px; }
+    .card .rank { font-size: 14px; }
+    .card .suit { font-size: 15px; }
+    .card.face-down::after { font-size: 18px; }
+    #communityCards { gap: 3px; }
+    #communityCards .card-placeholder { width: 40px; height: 56px; }
+
+    /* 底池 */
+    #potDisplay { font-size: 11px; transform: translate(-50%, 22px); }
+
+    /* 手牌展示 */
+    #yourHand { gap: 5px; }
+    #yourHand .card { width: 50px; height: 70px; }
+    #yourHand .card .rank { font-size: 18px; }
+    #yourHand .card .suit { font-size: 19px; }
+
+    /* 操作区 — 纵向排列 */
+    #actionBar {
+        flex-direction: column;
+        padding: 8px 10px;
+        gap: 10px;
+    }
+
+    /* 你的信息 — 横向排列 */
+    #yourInfo {
+        flex-direction: row;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    /* 按钮区 — 2列网格 */
+    #actionButtons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        width: 100%;
+    }
+
+    #actionButtons button {
+        font-size: 12px;
+        padding: 10px 8px;
+        min-width: auto;
+        min-height: 44px;  /* 触摸友好 */
+        border-radius: 6px;
+    }
+
+    .btn-allin {
+        font-size: 13px;
+        padding: 10px 8px;
+        grid-column: 1 / -1;  /* All-in 独占整行 */
+    }
+
+    .btn-next {
+        font-size: 14px;
+        padding: 12px 8px;
+        grid-column: 1 / -1;  /* 下一局独占整行 */
+    }
+
+    /* 滑块跨两列 */
+    #raiseSlider {
+        width: 100%;
+        grid-column: 1 / 2;
+    }
+
+    #sliderLabel {
+        font-size: 11px;
+        min-width: auto;
+        grid-column: 2 / 3;
+        align-self: center;
+        text-align: center;
+    }
+
+    #yourChips { font-size: 13px; }
+    #yourBet   { font-size: 10px; }
+    #handHint  { font-size: 10px; }
+
+    /* 结果弹窗 */
+    #resultBox { max-width: 92vw; padding: 16px 18px; }
+    #resultBox h2 { font-size: 16px; margin-bottom: 10px; }
+    #resultBox .winner-list { font-size: 11px; line-height: 1.7; }
+    #resultBox button { font-size: 14px; padding: 10px 24px; margin-top: 10px; }
+
+    /* 弹窗的按钮触摸优化 */
+    #resultBox button { min-height: 44px; }
+}
+
+
+/* ===================================================================
+ * 响应式断点 4: ≤380px — 小屏手机
+ * =================================================================== */
+@media (max-width: 380px) {
+    /* 牌桌 — 接近正圆 */
+    #tableArea {
+        width: 96vw;
+        aspect-ratio: 1.02;
+        border-radius: 35vw;
+    }
+
+    /* 座位微调 */
+    #seat-0 { bottom: -28px; }
+    #seat-2 { right: -8px; }
+    #seat-3 { right: -8px; }
+    #seat-6 { left: -8px; }
+    #seat-7 { left: -8px; }
+
+    .player-info { min-width: 48px; padding: 2px 4px; }
+    .player-name { font-size: 8px; }
+    .player-chip { font-size: 7px; }
+
+    /* 公共牌 */
+    .card { width: 36px; height: 50px; }
+    .card .rank { font-size: 12px; }
+    .card .suit { font-size: 14px; }
+    .card.face-down::after { font-size: 16px; }
+    #communityCards .card-placeholder { width: 36px; height: 50px; }
+
+    /* 手牌 */
+    #yourHand .card { width: 44px; height: 62px; }
+    #yourHand .card .rank { font-size: 16px; }
+    #yourHand .card .suit { font-size: 17px; }
+
+    /* 按钮 */
+    #actionButtons button { font-size: 11px; padding: 8px 6px; min-height: 40px; }
+    .btn-allin { font-size: 12px; }
+    .btn-next  { font-size: 13px; }
+}

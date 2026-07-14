@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>德州扑克 AI 训练器</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+    <!-- 顶栏 -->
+    <div id="topBar">
+        <span class="hand-num" id="handNum">准备开始</span>
+        <span class="game-msg" id="gameMsg">欢迎使用德州扑克AI训练器</span>
+    </div>
+
+    <!-- 牌桌 -->
+    <div id="tableArea">
+        <!-- 荷官位（空位，不参与游戏） -->
+        <div id="dealerSpot">
+            <div class="dealer-icon">🃏</div>
+            <div class="dealer-label">荷官</div>
+        </div>
+        <!-- 公共牌 -->
+        <div id="communityCards"></div>
+        <!-- 底池 -->
+        <div id="potDisplay">底池: 0</div>
+        <!-- 玩家座位 -->
+        <div id="seatsContainer"></div>
+    </div>
+
+    <!-- 底部操作区 -->
+    <div id="actionBar">
+        <!-- 你的手牌和筹码 -->
+        <div id="yourInfo">
+            <div id="yourHand"></div>
+            <div id="handHint"></div>
+            <div id="yourChips">积分: 500</div>
+            <div id="yourBet"></div>
+        </div>
+
+        <!-- 行动按钮 -->
+        <div id="actionButtons">
+            <button class="btn-fold" id="btnFold">弃牌</button>
+            <button class="btn-check" id="btnCheck">过牌</button>
+            <button class="btn-call" id="btnCall">跟注</button>
+            <button class="btn-raise" id="btnRaise30">+30%</button>
+            <button class="btn-raise" id="btnRaise50">+50%</button>
+            <button class="btn-raise" id="btnRaiseMax">+200%</button>
+            <input type="range" id="raiseSlider" min="10" max="200" value="50" step="5">
+            <span id="sliderLabel">+50%</span>
+            <button class="btn-allin" id="btnAllIn">All-in</button>
+            <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
+        </div>
+    </div>
+</div>
+
+<!-- 结果弹窗 -->
+<div id="resultOverlay" class="hidden">
+    <div id="resultBox">
+        <h2 id="resultTitle"></h2>
+        <div class="winner-list" id="winnerList"></div>
+        <button id="btnNextHand">下一局 ▶</button>
+    </div>
+</div>
+
+<script src="game.js"></script>
+<script>
+// ==================== UI 控制器 ====================
+
+const game = new PokerGame();
+const tableArea = document.getElementById('tableArea');
+
+// 座位在桌面上的固定位置（CSS 由 style.css 的 #seat-N 定义）
+// 荷官位于牌桌顶部中央（纯装饰，不参与游戏）
+// 玩家围绕牌桌 U 形分布：你(下方) + 8个AI(左右两侧)
+const SEAT_POSITIONS = [
+    { id: 'seat-0' }, // 你 — 正下方中央
+    { id: 'seat-1' }, // AI — 右上
+    { id: 'seat-2' }, // AI — 右侧上
+    { id: 'seat-3' }, // AI — 右侧下
+    { id: 'seat-4' }, // AI — 右下
+    { id: 'seat-5' }, // AI — 左下
+    { id: 'seat-6' }, // AI — 左侧下
+    { id: 'seat-7' }, // AI — 左侧上
+    { id: 'seat-8' }, // AI — 左上
+];
+
+// 初始化座位 DOM
+function initSeats() {
+    const container = document.getElementById('seatsContainer');
+    for (let i = 0; i < 9; i++) {
+        const seat = document.createElement('div');
+        seat.className = 'player-seat';
+        seat.id = SEAT_POSITIONS[i].id;
+        seat.innerHTML = `
+            <div class="player-info" id="playerInfo${i}">
+                <div class="player-name" id="playerName${i}"></div>
+                <div class="player-chip" id="playerChip${i}"></div>
+                <div class="player-bet" id="playerBet${i}"></div>
+                <div class="player-cards" id="playerCards${i}"></div>
+                <div class="seat-pos-label" id="seatLabel${i}"></div>
+            </div>
+        `;
+        container.appendChild(seat);
+    }
+}
+
+// 渲染卡牌 HTML
+function renderCard(card, faceDown) {
+    if (faceDown) {
+        return '<div class="mini-card face-down">?</div>';
+    }
+    const suitSymbol = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[card.suit];
+    const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+    return `<div class="mini-card ${isRed ? 'red' : ''}">
+        <span>${card.rank}</span><span>${suitSymbol}</span>
+    </div>`;
+}
+
+function renderBigCard(card, faceDown) {
+    if (faceDown) return '<div class="card face-down"></div>';
+    const suitSymbol = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[card.suit];
+    const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+    return `<div class="card ${isRed ? 'red' : 'black'}">
+        <span class="rank">${card.rank}</span>
+        <span class="suit">${suitSymbol}</span>
+    </div>`;
+}
+
+// 主渲染函数
+function render(state) {
+    // 顶栏
+    document.getElementById('handNum').textContent = `第 ${state.handNumber} 手`;
+    document.getElementById('gameMsg').textContent = state.message;
+
+    // 玩家座位
+    for (let i = 0; i < 9; i++) {
+        const p = state.players[i];
+        if (!p) continue;
+
+        const info = document.getElementById(`playerInfo${i}`);
+        const nameEl = document.getElementById(`playerName${i}`);
+        const chipEl = document.getElementById(`playerChip${i}`);
+        const betEl = document.getElementById(`playerBet${i}`);
+        const cardsEl = document.getElementById(`playerCards${i}`);
+        const labelEl = document.getElementById(`seatLabel${i}`);
+
+        // 名字
+        let nameHTML = p.name;
+        if (p.isDealer) nameHTML += ' <span class="badge-dealer">D</span>';
+        if (p.isSmallBlind) nameHTML += ' <span class="badge-sb">SB</span>';
+        if (p.isBigBlind) nameHTML += ' <span class="badge-bb">BB</span>';
+        if (!p.isHuman && p.aiType) nameHTML += ` <span class="badge-ai">${p.aiType}</span>`;
+        nameEl.innerHTML = nameHTML;
+        if (p.isHuman) nameEl.classList.add('human');
+        else nameEl.classList.remove('human');
+
+        // 筹码
+        chipEl.textContent = `积分: ${p.chips}`;
+
+        // 当前下注
+        if (p.totalBetThisHand > 0) {
+            betEl.textContent = `下注: ${p.totalBetThisHand}`;
+        } else {
+            betEl.textContent = '';
+        }
+
+        // 手牌
+        if (p.isEliminated) {
+            cardsEl.innerHTML = '';
+        } else if (p.isFolded) {
+            cardsEl.innerHTML = renderCard(null, true) + renderCard(null, true);
+        } else if (state.phase === 'hand_over' || state.phase === 'showdown') {
+            // 摊牌时全部亮牌
+            if (p.handCards.length === 2) {
+                cardsEl.innerHTML = renderCard(p.handCards[0], false) + renderCard(p.handCards[1], false);
+            } else {
+                cardsEl.innerHTML = renderCard(null, true) + renderCard(null, true);
+            }
+        } else if (p.isHuman) {
+            // 真人总是能看到自己的牌
+            if (p.handCards.length === 2) {
+                cardsEl.innerHTML = renderCard(p.handCards[0], false) + renderCard(p.handCards[1], false);
+            }
+        } else {
+            // AI: 暗牌
+            if (p.isActive && !p.isEliminated) {
+                cardsEl.innerHTML = renderCard(null, true) + renderCard(null, true);
+            } else {
+                cardsEl.innerHTML = '';
+            }
+        }
+
+        // 状态样式
+        info.classList.remove('current-turn', 'folded', 'eliminated');
+        if (p.isEliminated) info.classList.add('eliminated');
+        else if (p.isFolded) info.classList.add('folded');
+        // 当前行动玩家高亮（非真人时也显示）
+        if (i === game.currentPlayerIndex && state.phase !== 'hand_over' && state.phase !== 'idle' && state.phase !== 'game_over') {
+            // 只在游戏进行中高亮，不额外处理（已通过 player-seat 样式）
+        }
+
+        // 座位标签
+        labelEl.textContent = '';
+    }
+
+    // 高亮当前行动玩家
+    // 移除所有高亮
+    for (let i = 0; i < 9; i++) {
+        const info = document.getElementById(`playerInfo${i}`);
+        info.classList.remove('current-turn');
+    }
+    // 添加当前玩家高亮
+    if (state.phase !== 'hand_over' && state.phase !== 'idle' && state.phase !== 'game_over' && game.currentPlayerIndex >= 0) {
+        const currentInfo = document.getElementById(`playerInfo${game.currentPlayerIndex}`);
+        if (currentInfo) currentInfo.classList.add('current-turn');
+    }
+
+    // 公共牌
+    const commDiv = document.getElementById('communityCards');
+    let commHTML = '';
+    for (let i = 0; i < 5; i++) {
+        if (i < state.communityCards.length) {
+            commHTML += renderBigCard(state.communityCards[i], false);
+        } else {
+            commHTML += '<div class="card-placeholder"></div>';
+        }
+    }
+    commDiv.innerHTML = commHTML;
+
+    // 底池
+    document.getElementById('potDisplay').textContent = `底池: ${state.pot}`;
+
+    // 你的手牌（大图）
+    const yourHandDiv = document.getElementById('yourHand');
+    const human = state.players[0];
+    if (human && human.handCards && human.handCards.length === 2) {
+        yourHandDiv.innerHTML = renderBigCard(human.handCards[0], false) + renderBigCard(human.handCards[1], false);
+    } else {
+        yourHandDiv.innerHTML = '';
+    }
+
+    // 你的筹码
+    document.getElementById('yourChips').textContent = `积分: ${state.humanChips}`;
+
+    // 你的当前下注
+    if (human && human.totalBetThisHand > 0) {
+        document.getElementById('yourBet').textContent = `已下: ${human.totalBetThisHand}`;
+    } else {
+        document.getElementById('yourBet').textContent = '';
+    }
+
+    // 牌型提示（翻牌后显示当前最优牌型）
+    const hintDiv = document.getElementById('handHint');
+    if (state.phase !== 'preflop' && state.phase !== 'idle' && state.phase !== 'hand_over' && state.phase !== 'game_over' && human.handCards.length === 2 && state.communityCards.length >= 3) {
+        const all7 = [...human.handCards, ...state.communityCards];
+        const evalResult = evaluateHand(all7);
+        hintDiv.textContent = `当前牌型: ${evalResult.name}`;
+    } else if (state.phase === 'hand_over' && human.handCards && human.handCards.length === 2 && state.communityCards.length >= 3) {
+        const all7 = [...human.handCards, ...state.communityCards];
+        const evalResult = evaluateHand(all7);
+        const won = state.winners.find(w => w.isHuman && w.pot > 0);
+        hintDiv.textContent = `最终牌型: ${evalResult.name}` + (won ? ' ✅ 赢了!' : (state.winners.some(w => w.isHuman) ? '' : ' — 输了'));
+    } else {
+        hintDiv.textContent = '';
+    }
+
+    // 行动按钮
+    updateButtons(state);
+
+    // 结果弹窗
+    updateResultOverlay(state);
+}
+
+function updateButtons(state) {
+    const btns = {
+        fold: document.getElementById('btnFold'),
+        check: document.getElementById('btnCheck'),
+        call: document.getElementById('btnCall'),
+        raise30: document.getElementById('btnRaise30'),
+        raise50: document.getElementById('btnRaise50'),
+        raiseMax: document.getElementById('btnRaiseMax'),
+        allIn: document.getElementById('btnAllIn'),
+        next: document.getElementById('btnNext'),
+    };
+    const slider = document.getElementById('raiseSlider');
+    const sliderLabel = document.getElementById('sliderLabel');
+
+    // 全部隐藏
+    Object.values(btns).forEach(b => b.classList.add('hidden'));
+    slider.classList.add('hidden');
+    sliderLabel.classList.add('hidden');
+
+    if (state.isGameOver) return;
+
+    if (state.phase === 'hand_over') {
+        btns.next.classList.remove('hidden');
+        return;
+    }
+
+    if (state.isHumanTurn) {
+        const actions = state.availableActions;
+        if (actions.includes('fold')) btns.fold.classList.remove('hidden');
+        if (actions.includes('check')) btns.check.classList.remove('hidden');
+        if (actions.includes('call')) {
+            btns.call.classList.remove('hidden');
+            const toCall = game.currentBetLevel - game.players[0].currentBet;
+            btns.call.textContent = '跟注 ' + toCall;
+        }
+        if (actions.includes('raise_30')) btns.raise30.classList.remove('hidden');
+        if (actions.includes('raise_50')) btns.raise50.classList.remove('hidden');
+        if (actions.includes('raise_custom')) {
+            btns.raiseMax.classList.remove('hidden');
+            slider.classList.remove('hidden');
+            sliderLabel.classList.remove('hidden');
+            sliderLabel.textContent = '+' + slider.value + '%';
+        }
+        if (actions.includes('allin')) btns.allIn.classList.remove('hidden');
+    }
+}
+
+function updateResultOverlay(state) {
+    const overlay = document.getElementById('resultOverlay');
+    const title = document.getElementById('resultTitle');
+    const list = document.getElementById('winnerList');
+
+    if (state.phase !== 'hand_over') {
+        overlay.classList.add('hidden');
+        return;
+    }
+
+    // 不弹窗，改为底部按钮
+    overlay.classList.add('hidden');
+
+    // 但如果是游戏结束则弹窗
+    if (state.isGameOver) {
+        overlay.classList.remove('hidden');
+        title.textContent = state.message;
+        list.innerHTML = '';
+    }
+}
+
+// ===== 按钮事件 =====
+document.getElementById('btnFold').addEventListener('click', () => game.humanAction('fold'));
+document.getElementById('btnCheck').addEventListener('click', () => game.humanAction('check'));
+document.getElementById('btnCall').addEventListener('click', () => game.humanAction('call'));
+document.getElementById('btnRaise30').addEventListener('click', () => game.humanAction('raise', 1.3));
+document.getElementById('btnRaise50').addEventListener('click', () => game.humanAction('raise', 1.5));
+document.getElementById('btnRaiseMax').addEventListener('click', () => {
+    const pct = parseInt(document.getElementById('raiseSlider').value);
+    game.humanAction('raise', 1 + pct / 100);
+});
+document.getElementById('raiseSlider').addEventListener('input', function() {
+    document.getElementById('sliderLabel').textContent = '+' + this.value + '%';
+});
+document.getElementById('btnAllIn').addEventListener('click', () => game.humanAction('allin'));
+document.getElementById('btnNext').addEventListener('click', () => game.nextHand());
+document.getElementById('btnNextHand').addEventListener('click', () => {
+    document.getElementById('resultOverlay').classList.add('hidden');
+    game.nextHand();
+});
+
+// ===== 错误处理 =====
+window.onerror = function(msg, url, line) {
+    document.getElementById('gameMsg').textContent = 'JS错误: ' + msg + ' (行' + line + ')';
+    document.getElementById('gameMsg').style.color = '#e74c3c';
+};
+
+// ===== 启动 =====
+try {
+    game.onStateChange = function(state) {
+        try {
+            render(state);
+        } catch(e) {
+            document.getElementById('gameMsg').textContent = '渲染错误: ' + e.message;
+            document.getElementById('gameMsg').style.color = '#e74c3c';
+            console.error(e);
+        }
+    };
+    initSeats();
+    game.init();
+    console.log('Game initialized. Phase:', game.phase, 'Hand:', game.handNumber);
+    document.getElementById('gameMsg').textContent = '游戏已启动 — 观察AI行动中...';
+} catch(e) {
+    document.getElementById('gameMsg').textContent = '启动错误: ' + e.message;
+    document.getElementById('gameMsg').style.color = '#e74c3c';
+    console.error(e);
+}
+</script>
+
+</body>
+</html>
