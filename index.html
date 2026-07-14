@@ -354,23 +354,58 @@ function updateButtons(state) {
 
 function updateResultOverlay(state) {
     const overlay = document.getElementById('resultOverlay');
+    const box = document.getElementById('resultBox');
     const title = document.getElementById('resultTitle');
     const list = document.getElementById('winnerList');
 
-    if (state.phase !== 'hand_over') {
+    if (!state.isGameOver) {
         overlay.classList.add('hidden');
         return;
     }
 
-    // 不弹窗，改为底部按钮
-    overlay.classList.add('hidden');
+    // ===== 游戏结束：冠军结算动画 =====
+    overlay.classList.remove('hidden');
 
-    // 但如果是游戏结束则弹窗
-    if (state.isGameOver) {
-        overlay.classList.remove('hidden');
-        title.textContent = state.message;
-        list.innerHTML = '';
+    const humanWon = state.humanChips > 0;
+    const account = PokerGame.loadAccount();
+    const stats = account ? account.stats : null;
+
+    // 清空旧内容
+    list.innerHTML = '';
+
+    if (humanWon) {
+        box.className = 'champion';
+        title.innerHTML = '🏆 冠军！';
+        list.innerHTML = `
+            <span class="trophy">🏆</span>
+            <div class="stats-summary">
+                <div>🎯 <span class="highlight">${stats ? stats.totalHands : '?'} 手</span> 战胜所有 AI</div>
+                <div>📈 累计盈利 <span class="highlight">${stats ? (stats.profit >= 0 ? '+' : '') + stats.profit : '?'}</span></div>
+                <div>📊 胜率 <span class="highlight">${stats ? stats.winRate + '%' : '?'}</span></div>
+                <div>💰 最大底池 <span class="highlight">${stats ? stats.biggestPot : '?'}</span></div>
+            </div>
+        `;
+    } else {
+        box.className = 'defeat';
+        title.innerHTML = '😞 你被淘汰了';
+        list.innerHTML = `
+            <span class="trophy">💀</span>
+            <div class="stats-summary">
+                <div>🎯 共打了 <span class="highlight">${stats ? stats.totalHands : '?'} 手</span></div>
+                <div>📈 最终积分 <span class="highlight" style="color:#e74c3c;">${state.humanChips}</span></div>
+                <div>📊 胜率 <span class="highlight">${stats ? stats.winRate + '%' : '?'}</span></div>
+            </div>
+        `;
     }
+
+    // 重新绑定按钮
+    const btn = document.getElementById('btnNextHand');
+    btn.textContent = humanWon ? '🏆 再来一局' : '🔄 重新开始';
+    btn.onclick = () => {
+        overlay.classList.add('hidden');
+        PokerGame.clearSave();
+        location.reload();
+    };
 }
 
 // ===== 按钮事件 =====

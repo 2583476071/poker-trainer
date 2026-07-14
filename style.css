@@ -412,26 +412,69 @@ body {
 #resultOverlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.85);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 100;
+    animation: fadeIn 0.4s ease;
 }
 
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn   { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes bounce  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes shimmer { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+
 #resultBox {
-    background: #1e1e2e;
-    border: 2px solid #4a3728;
-    border-radius: 16px;
-    padding: 30px 40px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #1e1e3e 50%, #1a1a2e 100%);
+    border: 3px solid #4a3728;
+    border-radius: 20px;
+    padding: 32px 40px;
     text-align: center;
-    max-width: 500px;
+    max-width: 440px;
     margin: 0 16px;
+    animation: popIn 0.5s ease;
+}
+
+/* 冠军胜利样式 */
+#resultBox.champion {
+    border-color: #f0c040;
+    box-shadow: 0 0 40px rgba(240,192,64,0.3), 0 0 80px rgba(240,192,64,0.1);
+}
+
+#resultBox.champion h2 {
+    font-size: 28px;
+    color: #f0c040;
+    animation: bounce 0.6s ease;
+    text-shadow: 0 0 20px rgba(240,192,64,0.5);
 }
 
 #resultBox h2 {
     font-size: 22px;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
+}
+
+#resultBox .trophy {
+    font-size: 56px;
+    animation: bounce 0.8s ease infinite;
+    display: block;
+    margin-bottom: 8px;
+}
+
+#resultBox .stats-summary {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #ccc;
+}
+
+#resultBox .stats-summary .highlight {
+    color: #f0c040;
+    font-weight: bold;
+    font-size: 16px;
 }
 
 #resultBox .winner-list {
@@ -446,18 +489,23 @@ body {
 
 #resultBox button {
     margin-top: 16px;
-    padding: 12px 36px;
-    font-size: 16px;
+    padding: 14px 40px;
+    font-size: 17px;
     font-weight: bold;
-    background: #f0c040;
+    background: linear-gradient(135deg, #f0c040, #ff9800);
     color: #000;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     font-family: inherit;
+    transition: transform 0.2s;
 }
 
-#resultBox button:hover { background: #ffd54f; }
+#resultBox button:hover { transform: scale(1.05); }
+
+/* 失败样式 */
+#resultBox.defeat h2 { color: #e74c3c; }
+#resultBox.defeat .trophy { animation: none; filter: grayscale(1); }
 
 /* ===== 你的牌型提示 ===== */
 #handHint {
