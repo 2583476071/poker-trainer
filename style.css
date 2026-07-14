@@ -58,7 +58,6 @@ body {
     border: 6px solid #4a3728;
     box-shadow: 0 0 60px rgba(0,0,0,0.5), inset 0 0 120px rgba(0,0,0,0.3);
     margin: 10px 0;
-    overflow: hidden;
 }
 
 /* ===== 荷官位 ===== */
@@ -481,7 +480,6 @@ body {
         border-radius: 20vw;
         border-width: 4px;
         margin: 6px 0;
-        overflow: hidden;
     }
 
     /* 荷官缩小 */
