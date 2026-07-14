@@ -856,10 +856,18 @@ class PokerGame {
     /** 计算 MDF（最低防守频率）：面对下注时需防守的范围比例 */
     calculateMDF() {
         const pot = totalPot(this.players);
-        const toCall = this.currentBetLevel; // 当前玩家需要跟注的金额
+        const toCall = this.currentBetLevel;
         if (toCall <= 0) return 1.0;
         const mdf = pot / (pot + toCall);
-        return Math.min(0.9, Math.max(0.25, mdf)); // 裁剪到合理范围
+        // 下限极低：巨大超池下注时 MDF 可降至 5%（不再强制 25%）
+        return Math.min(0.9, Math.max(0.05, mdf));
+    }
+
+    /** 计算下注与底池的比例（用于判断是否超池下注） */
+    getBetPotRatio() {
+        const pot = totalPot(this.players);
+        if (pot <= 0) return 1;
+        return this.currentBetLevel / pot;
     }
 
     /** 计算范围优势：+1=AI有优势，0=中性，-1=对手有优势 */
@@ -994,6 +1002,11 @@ class PokerGame {
         // 范围优势调整加注阈值
         const rangeBoost = rangeAdv * 0.06; // 有优势时降低 thresholds，无优势时升高
 
+        // 超池下注保护：面对巨大超池下注时大幅提高弃牌门槛
+        const betPotRatio = this.getBetPotRatio();
+        const isMassiveOverbet = betPotRatio > 3;    // 下注超过底池3倍
+        const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
+
         // ===== 4. 特殊策略（按优先级排列） =====
 
         // 4a. 筹码霸凌
@@ -1049,8 +1062,8 @@ class PokerGame {
             }
         }
 
-        // 需要跟注时的诈唬加注
-        if (!isCheckedToMe && effectiveStrength < 0.35 && toCall > 0) {
+        // 需要跟注时的诈唬加注（超池下注时禁用——诈唬成本太高）
+        if (!isCheckedToMe && effectiveStrength < 0.35 && toCall > 0 && !isMassiveOverbet) {
             const bluffVsBet = profile.bluff * (board.scary ? 1.3 : 1.0);
             if (Math.random() < bluffVsBet && player.chips > toCall * 3) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluffraise') };
@@ -1062,8 +1075,8 @@ class PokerGame {
             return { action: 'check' };
         }
 
-        // ===== 5. 动态阈值（GTO 增强） =====
-        const foldThreshold  = Math.min(gtoFoldThreshold, profile.tightness * 0.55);
+        // ===== 5. 动态阈值（GTO 增强 + 超池保护） =====
+        const foldThreshold  = Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty;
         const betThreshold   = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost);
         const raiseThreshold = Math.max(0.40, (0.72 - profile.aggression * 0.28) - rangeBoost);
 
@@ -1072,8 +1085,8 @@ class PokerGame {
 
         // 手牌弱 → 考虑弃牌（MDF 提供"再次考虑跟注"的机会）
         if (effectiveStrength < foldThreshold && toCall > 0) {
-            // MDF 防守：即使牌弱，如果 GTO 要求防守，有一定概率跟注
-            if (effectiveStrength > gtoFoldThreshold && Math.random() < 0.35) {
+            // MDF 防守：超池下注时禁用随机防守（不值得用弱牌接巨大下注）
+            if (!isMassiveOverbet && effectiveStrength > gtoFoldThreshold && Math.random() < 0.35) {
                 return { action: 'call' };
             }
             if (potOdds < 0.18 && effectiveStrength > foldThreshold * 0.55) {
