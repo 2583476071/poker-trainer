@@ -597,9 +597,14 @@ class PokerGame {
         this.currentBetLevel = 0;
         this.minRaise = this.bigBlindAmount;
 
-        // 如果只剩一个活跃玩家 → 直接获胜
+        // 如果只剩一个活跃玩家 → 发完公共牌再结束
         if (this.countActivePlayers() === 1) {
             const winner = this.players.find(p => this.isActive(p));
+            // 补发剩余公共牌（让玩家看到完整牌面）
+            const cardsNeeded = 5 - this.communityCards.length;
+            if (cardsNeeded > 0 && this.deck.length >= cardsNeeded) {
+                this.communityCards.push(...draw(this.deck, cardsNeeded));
+            }
             this.phase = 'hand_over';
             const pot = totalPot(this.players);
             winner.chips += pot;
