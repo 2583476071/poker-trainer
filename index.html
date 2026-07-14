@@ -28,6 +28,8 @@
         <div id="communityCards"></div>
         <!-- 底池 -->
         <div id="potDisplay">底池: 0</div>
+        <!-- 盲注级别 -->
+        <div id="blindDisplay">2/4</div>
         <!-- 玩家座位 -->
         <div id="seatsContainer"></div>
     </div>
@@ -260,6 +262,7 @@ function render(state) {
 
     // 底池
     document.getElementById('potDisplay').textContent = `底池: ${state.pot}`;
+    document.getElementById('blindDisplay').textContent = `${state.smallBlind}/${state.bigBlind}`;
 
     // 你的手牌（大图）
     const yourHandDiv = document.getElementById('yourHand');

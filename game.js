@@ -1300,6 +1300,8 @@ class PokerGame {
             isGameOver: this.phase === 'game_over',
             humanChips: this.players[0].chips,
             humanHand: this.players[0].handCards,
+            smallBlind: this.smallBlindAmount,
+            bigBlind: this.bigBlindAmount,
         };
     }
 

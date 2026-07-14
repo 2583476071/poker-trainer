@@ -126,6 +126,21 @@ body {
     text-shadow: 0 0 10px rgba(240,192,64,0.5);
 }
 
+/* ===== 盲注级别显示 ===== */
+#blindDisplay {
+    position: absolute;
+    top: 8%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #888;
+    font-size: 12px;
+    z-index: 4;
+    background: rgba(0,0,0,0.5);
+    padding: 2px 10px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
 /* ===== 玩家座位 ===== */
 .player-seat {
     position: absolute;
@@ -508,6 +523,7 @@ body {
 
     /* 底池 */
     #potDisplay { font-size: 13px; transform: translate(-50%, 30px); }
+    #blindDisplay { font-size: 10px; top: 6%; }
 
     /* 手牌展示 */
     #yourHand .card { width: 56px; height: 78px; }
@@ -628,6 +644,7 @@ body {
 
     /* 底池 */
     #potDisplay { font-size: 12px; transform: translate(-50%, 24px); }
+    #blindDisplay { font-size: 9px; top: 4%; padding: 1px 8px; }
 
     /* 手牌展示 */
     #yourHand { gap: 5px; }
