@@ -282,6 +282,7 @@ class PokerGame {
         this.currentBetLevel = 0;   // 当前轮最高下注额
         this.minRaise = BIG_BLIND;
         this.preflopRaiserIndex = -1;
+        this.raiseCountThisRound = 0;  // 本轮加注次数（防止无限再加注）
         this.handNumber = 0;
         this.message = '';
         this.winners = [];          // showdown 结果
@@ -332,6 +333,7 @@ class PokerGame {
         this.currentBetLevel = this.bigBlindAmount;
         this.minRaise = this.bigBlindAmount;
         this.preflopRaiserIndex = -1;
+        this.raiseCountThisRound = 0;
         this.winners = [];
         this.message = '';
         this.pendingHumanAction = null;
@@ -538,6 +540,9 @@ class PokerGame {
         if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
         if (p.chips <= 0) p.isAllIn = true;
 
+        // 递增本轮加注计数
+        this.raiseCountThisRound++;
+
         // 有人加注 → 所有其他活跃玩家需要重新行动
         for (const other of this.players) {
             if (other.id !== p.id && this.isActive(other) && !other.isAllIn) {
@@ -596,6 +601,7 @@ class PokerGame {
         }
         this.currentBetLevel = 0;
         this.minRaise = this.bigBlindAmount;
+        this.raiseCountThisRound = 0;
 
         // 如果只剩一个活跃玩家 → 发完公共牌再结束
         if (this.countActivePlayers() === 1) {
@@ -989,7 +995,22 @@ class PokerGame {
 
         // 位置加成和听牌加成
         const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
-        const effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus);
+        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus);
+
+        // ===== 翻牌前范围收紧 =====
+        const isPreflop = this.communityCards.length === 0;
+        if (isPreflop) {
+            // 位置惩罚（翻牌前位置是决定性因素）
+            const preflopPosPenalty = position === 'early' ? -0.18 :
+                                      (position === 'middle' ? -0.08 : 0);
+            effectiveStrength += preflopPosPenalty;
+
+            // 面对再加注时，有效牌力递减（3-bet/4-bet 需要更强牌）
+            if (!isCheckedToMe && this.raiseCountThisRound >= 2) {
+                const extraFolds = (this.raiseCountThisRound - 1) * 0.10;
+                effectiveStrength -= extraFolds;
+            }
+        }
 
         // ===== 3. 下注上下文 + GTO 参数 =====
         const toCall = this.currentBetLevel - player.currentBet;
@@ -1012,17 +1033,20 @@ class PokerGame {
         const isMassiveOverbet = betPotRatio > 3;    // 下注超过底池3倍
         const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
 
+        // 加注次数上限：本轮已加注 ≥5 次 → 禁止 AI 再加注
+        const raiseCapped = this.raiseCountThisRound >= 5;
+
         // ===== 4. 特殊策略（按优先级排列） =====
 
         // 4a. 筹码霸凌
-        if (stacks.isBigStack && stacks.targetsShortStack && !isCheckedToMe && effectiveStrength > 0.3) {
+        if (!raiseCapped && stacks.isBigStack && stacks.targetsShortStack && !isCheckedToMe && effectiveStrength > 0.3) {
             if (Math.random() < profile.aggression * 0.5) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bully') };
             }
         }
 
         // 4b. 偷盲/偷底：干燥牌面更好偷
-        if (position === 'late' && isCheckedToMe && effectiveStrength > 0.25) {
+        if (!raiseCapped && position === 'late' && isCheckedToMe && effectiveStrength > 0.25) {
             const dryBonus = board.category === 'dry' ? 0.15 : 0;
             const stealChance = profile.aggression * 0.6 + (stacks.isBigStack ? 0.2 : 0) + dryBonus;
             if (Math.random() < stealChance) {
@@ -1049,7 +1073,7 @@ class PokerGame {
                            isCheckedToMe;
 
         // 4e. 半诈唬
-        if (drawBonus > 0.05 && position !== 'early' && isCheckedToMe && effectiveStrength > 0.3) {
+        if (!raiseCapped && drawBonus > 0.05 && position !== 'early' && isCheckedToMe && effectiveStrength > 0.3) {
             const semiBluffChance = profile.aggression * 0.5 + (board.category === 'wet' ? 0.1 : 0);
             if (Math.random() < semiBluffChance) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'semibluff') };
@@ -1057,7 +1081,7 @@ class PokerGame {
         }
 
         // 4f. 情景化诈唬：干燥面也适合诈唬（牌面没帮到对手）
-        if (isCheckedToMe && effectiveStrength < 0.5) {
+        if (!raiseCapped && isCheckedToMe && effectiveStrength < 0.5) {
             const boardBluffBonus = board.category === 'dry' ? 1.2 : (board.scary ? 1.5 : 1.0);
             const bluffMultiplier = boardBluffBonus * (position === 'late' ? 1.3 : 1.0);
             if (Math.random() < profile.bluff * bluffMultiplier) {
@@ -1068,7 +1092,7 @@ class PokerGame {
         }
 
         // 需要跟注时的诈唬加注（超池下注时禁用——诈唬成本太高）
-        if (!isCheckedToMe && effectiveStrength < 0.35 && toCall > 0 && !isMassiveOverbet) {
+        if (!raiseCapped && !isCheckedToMe && effectiveStrength < 0.35 && toCall > 0 && !isMassiveOverbet) {
             const bluffVsBet = profile.bluff * (board.scary ? 1.3 : 1.0);
             if (Math.random() < bluffVsBet && player.chips > toCall * 3) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluffraise') };
@@ -1081,17 +1105,24 @@ class PokerGame {
         }
 
         // ===== 5. 动态阈值（GTO 增强 + 超池保护） =====
-        const foldThreshold  = Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty;
+        // 翻牌前弃牌阈值翻倍（preflop 必须更紧）
+        const preflopTightness = isPreflop ? 2.0 : 1.0;
+        // 再加注轮次进一步收紧
+        const raisePressure = 1.0 + this.raiseCountThisRound * 0.15;
+
+        const foldThreshold  = (Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty)
+                               * preflopTightness * raisePressure;
         const betThreshold   = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost);
-        const raiseThreshold = Math.max(0.40, (0.72 - profile.aggression * 0.28) - rangeBoost);
+        const raiseThreshold = Math.max(0.45,
+            (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08);
 
         // ===== 6. 核心决策（混合策略边界） =====
         const margin = 0.06; // 混合区间宽度
 
         // 手牌弱 → 考虑弃牌（MDF 提供"再次考虑跟注"的机会）
         if (effectiveStrength < foldThreshold && toCall > 0) {
-            // MDF 防守：超池下注时禁用随机防守（不值得用弱牌接巨大下注）
-            if (!isMassiveOverbet && effectiveStrength > gtoFoldThreshold && Math.random() < 0.35) {
+            // MDF 防守：仅翻牌后启用，超池下注时禁用（翻牌前范围收紧已足够）
+            if (!isPreflop && !isMassiveOverbet && effectiveStrength > gtoFoldThreshold && Math.random() < 0.35) {
                 return { action: 'call' };
             }
             if (potOdds < 0.18 && effectiveStrength > foldThreshold * 0.55) {
@@ -1102,7 +1133,7 @@ class PokerGame {
         }
 
         // 手牌强 → 加注（混合策略：在阈值附近按概率加注）
-        if (effectiveStrength > raiseThreshold && !isTrapping) {
+        if (effectiveStrength > raiseThreshold && !isTrapping && !raiseCapped) {
             // 混合区：raiseThreshold ~ raiseThreshold+margin 之间，概率性加注
             if (effectiveStrength < raiseThreshold + margin) {
                 const raiseProb = (effectiveStrength - raiseThreshold) / margin;
@@ -1123,7 +1154,7 @@ class PokerGame {
         }
 
         // 被过牌 + 中等牌力 → 主动下注
-        if (isCheckedToMe && effectiveStrength > betThreshold && !isTrapping) {
+        if (!raiseCapped && isCheckedToMe && effectiveStrength > betThreshold && !isTrapping) {
             // 混合策略边界
             if (effectiveStrength < betThreshold + margin && Math.random() < 0.5) {
                 return { action: 'check' };
