@@ -997,6 +997,12 @@ class PokerGame {
         const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
         let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus);
 
+        // ===== 3. 下注上下文 + GTO 参数（需在翻牌前收紧之前） =====
+        const toCall = this.currentBetLevel - player.currentBet;
+        const potAfterCall = totalPot(this.players) + toCall;
+        const potOdds = toCall > 0 ? toCall / (potAfterCall || 1) : 0;
+        const isCheckedToMe = toCall === 0;
+
         // ===== 翻牌前范围收紧 =====
         const isPreflop = this.communityCards.length === 0;
         if (isPreflop) {
@@ -1011,12 +1017,6 @@ class PokerGame {
                 effectiveStrength -= extraFolds;
             }
         }
-
-        // ===== 3. 下注上下文 + GTO 参数 =====
-        const toCall = this.currentBetLevel - player.currentBet;
-        const potAfterCall = totalPot(this.players) + toCall;
-        const potOdds = toCall > 0 ? toCall / (potAfterCall || 1) : 0;
-        const isCheckedToMe = toCall === 0;
 
         // GTO: MDF 最低防守频率 + 范围优势
         const mdf = this.calculateMDF();
