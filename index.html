@@ -200,15 +200,15 @@ function render(state) {
         // 手牌
         if (p.isEliminated) {
             cardsEl.innerHTML = '';
-        } else if (p.isFolded) {
-            cardsEl.innerHTML = renderCard(null, true) + renderCard(null, true);
         } else if (state.phase === 'hand_over' || state.phase === 'showdown') {
-            // 摊牌时全部亮牌
+            // 对局结束/摊牌：全部亮牌（不管是否弃牌）
             if (p.handCards.length === 2) {
                 cardsEl.innerHTML = renderCard(p.handCards[0], false) + renderCard(p.handCards[1], false);
             } else {
                 cardsEl.innerHTML = renderCard(null, true) + renderCard(null, true);
             }
+        } else if (p.isFolded) {
+            cardsEl.innerHTML = renderCard(null, true) + renderCard(null, true);
         } else if (p.isHuman) {
             // 真人总是能看到自己的牌
             if (p.handCards.length === 2) {
