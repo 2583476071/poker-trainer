@@ -541,6 +541,8 @@ class PokerGame {
             if (!this.isActive(p)) continue;
             p.handCards = draw(this.deck, 2);
         }
+        // 验证无重复牌
+        this.validateNoDuplicates();
 
         // 扣盲注
         this.postBlind(sbIndex, this.smallBlindAmount);
@@ -604,6 +606,24 @@ class PokerGame {
             if (p.needsToAct) return idx;
         }
         return -1; // 所有人都行动完了
+    }
+
+    /** 检测牌桌上是否有重复牌（调试用） */
+    validateNoDuplicates() {
+        const allCards = [...this.communityCards];
+        for (const p of this.players) {
+            if (p.handCards && p.handCards.length) allCards.push(...p.handCards);
+        }
+        const seen = new Set();
+        for (const c of allCards) {
+            const key = c.rank + c.suit;
+            if (seen.has(key)) {
+                console.error('⚠️ 重复牌检测:', key, '— 牌堆异常！');
+                return false;
+            }
+            seen.add(key);
+        }
+        return true;
     }
 
     /** 玩家是否活跃（未弃牌、未淘汰） */
@@ -1899,8 +1919,15 @@ class PokerGame {
         if (!this.players[sbIdx].isEliminated) this.players[sbIdx].isSmallBlind = true;
         if (!this.players[bbIdx].isEliminated) this.players[bbIdx].isBigBlind = true;
 
-        // 存档不包含完整牌堆，从安全状态重启
+        // 存档不包含完整牌堆 → 创建新牌堆，但移除已在手牌/公共牌中的牌
         this.deck = createDeck();
+        const usedCards = [...this.communityCards];
+        for (const p of this.players) {
+            if (p.handCards && p.handCards.length) usedCards.push(...p.handCards);
+        }
+        this.deck = this.deck.filter(c =>
+            !usedCards.some(u => u.rank === c.rank && u.suit === c.suit)
+        );
         this.initHumanStats();
         this.notifyState();
         this.autoAdvance();
