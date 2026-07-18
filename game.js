@@ -497,6 +497,7 @@ class PokerGame {
         this.raiseCountThisRound = 0;
         this.winners = [];
         this.message = '';
+        this._wasShowdown = false;
         this.pendingHumanAction = null;
 
         for (const p of this.players) {
@@ -850,6 +851,7 @@ class PokerGame {
     /** 摊牌比大小 */
     doShowdown() {
         this.phase = 'showdown';
+        this._wasShowdown = true;
         const activePlayers = this.players.filter(p => this.isActive(p));
         const pots = calculatePots(this.players);
         const results = []; // [{player, hand, potShare}]
@@ -1700,10 +1702,11 @@ class PokerGame {
             }
         }
 
-        // 训练模式：hand_over 或 showdown 都亮牌；竞技模式：仅 showdown 亮牌
+        // 训练模式：hand_over 或 showdown 都亮牌；竞技模式：仅摊牌亮牌
+        const isShowdownResult = this.phase === 'hand_over' && this._wasShowdown;
         const revealAllCards = this.gameMode === 'training'
             ? (this.phase === 'hand_over' || this.phase === 'showdown')
-            : (this.phase === 'showdown');
+            : (this.phase === 'showdown' || isShowdownResult);
         const showAiTypes = this.gameMode === 'training';
 
         return {
