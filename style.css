@@ -849,6 +849,38 @@ body {
 
 #nicknameInput:focus { border-color: #f0c040; }
 
+/* 模式选择 */
+#modeSelector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: bold;
+    border: 2px solid #4a3728;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    color: #888;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.mode-btn.active {
+    border-color: #f0c040;
+    color: #f0c040;
+    background: rgba(240,192,64,0.1);
+}
+
+.mode-btn:hover:not(.active) {
+    border-color: #666;
+    color: #ccc;
+}
+
 #btnStartGame {
     width: 100%;
     padding: 12px;

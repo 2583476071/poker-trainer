@@ -66,6 +66,12 @@
         <h2>🎰 欢迎来到德州扑克</h2>
         <p>输入昵称开始游戏</p>
         <input type="text" id="nicknameInput" placeholder="你的昵称" maxlength="12" autocomplete="off">
+        <!-- 模式选择 -->
+        <div id="modeSelector">
+            <button class="mode-btn active" data-mode="training">训练模式</button>
+            <button class="mode-btn" data-mode="competitive">竞技模式</button>
+        </div>
+        <p id="modeHint" class="hidden" style="font-size:11px;color:#999;margin-bottom:12px;"></p>
         <button id="btnStartGame">开始游戏</button>
     </div>
 </div>
@@ -182,7 +188,7 @@ function render(state) {
         if (p.isDealer) nameHTML += ' <span class="badge-dealer">D</span>';
         if (p.isSmallBlind) nameHTML += ' <span class="badge-sb">SB</span>';
         if (p.isBigBlind) nameHTML += ' <span class="badge-bb">BB</span>';
-        if (!p.isHuman && p.aiType) nameHTML += ` <span class="badge-ai">${p.aiType}</span>`;
+        if (!p.isHuman && p.aiType && state.showAiTypes) nameHTML += ` <span class="badge-ai">${p.aiType}</span>`;
         nameEl.innerHTML = nameHTML;
         if (p.isHuman) nameEl.classList.add('human');
         else nameEl.classList.remove('human');
@@ -445,6 +451,19 @@ function initNickname() {
     const overlay = document.getElementById('nicknameOverlay');
     const input = document.getElementById('nicknameInput');
     const btn = document.getElementById('btnStartGame');
+    const hint = document.getElementById('modeHint');
+
+    // 模式选择
+    let selectedMode = 'training';
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedMode = this.dataset.mode;
+            hint.classList.toggle('hidden', selectedMode === 'training');
+            hint.textContent = selectedMode === 'competitive' ? 'AI性格隐藏，仅摊牌时亮牌' : '';
+        });
+    });
 
     const existing = PokerGame.loadAccount();
     if (existing) {
@@ -461,7 +480,7 @@ function initNickname() {
         const name = input.value.trim() || '玩家';
         game.setNickname(name);
         overlay.style.display = 'none';
-        checkSavedGame();
+        startGame(false, selectedMode);
     });
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') btn.click();
@@ -491,13 +510,13 @@ function checkSavedGame() {
 }
 
 // ===== 启动游戏 =====
-function startGame(resume) {
+function startGame(resume, mode) {
     try {
         initSeats();
         if (resume) {
             const save = PokerGame.loadGame();
             if (save) {
-                game.init(); // 初始化基本结构
+                game.init(save.gameMode || 'training'); // 初始化基本结构
                 game.restoreFromSave(save);
                 updateStatsPanel();
                 console.log('Game restored from save. Phase:', game.phase, 'Hand:', game.handNumber);
@@ -505,7 +524,7 @@ function startGame(resume) {
                 return;
             }
         }
-        game.init();
+        game.init(mode || 'training');
         updateStatsPanel();
         console.log('Game initialized. Phase:', game.phase, 'Hand:', game.handNumber);
         document.getElementById('gameMsg').textContent = '游戏已启动 — 观察AI行动中...';

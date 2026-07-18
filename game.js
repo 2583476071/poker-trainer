@@ -441,10 +441,12 @@ class PokerGame {
         this.eliminatedPlayers = [];
         this.account = null;           // { nickname, stats }
         this.humanStats = null;        // 本局追踪: { folds, raises, calls, startingChips }
+        this.gameMode = 'training';    // 'training' | 'competitive'
     }
 
-    /** 初始化游戏：1 真人 + 8 AI */
-    init() {
+    /** 初始化游戏：1 真人 + 8 AI，mode='training'|'competitive' */
+    init(mode) {
+        this.gameMode = mode || 'training';
         this.players = [];
         this.handNumber = 0;
         this.eliminatedPlayers = [];
@@ -452,10 +454,19 @@ class PokerGame {
         // 真人
         this.players.push(createPlayer(0, '你', true, null));
 
-        // 8 个 AI，随机分配性格
-        const shuffledPersonalities = shuffle(AI_PERSONALITIES);
-        for (let i = 0; i < 8; i++) {
-            this.players.push(createPlayer(i + 1, `AI-${i + 1}`, false, shuffledPersonalities[i]));
+        // 8 个 AI
+        if (this.gameMode === 'competitive') {
+            // 竞技模式：随机抽取，允许重复（2-5 个相同策略）
+            for (let i = 0; i < 8; i++) {
+                const randIdx = Math.floor(Math.random() * AI_PERSONALITIES.length);
+                this.players.push(createPlayer(i + 1, `AI-${i + 1}`, false, AI_PERSONALITIES[randIdx]));
+            }
+        } else {
+            // 训练模式：8 种性格各一个，无重复
+            const shuffledPersonalities = shuffle(AI_PERSONALITIES);
+            for (let i = 0; i < 8; i++) {
+                this.players.push(createPlayer(i + 1, `AI-${i + 1}`, false, shuffledPersonalities[i]));
+            }
         }
 
         // 随机庄位
@@ -1669,12 +1680,18 @@ class PokerGame {
             }
         }
 
+        // 训练模式：hand_over 或 showdown 都亮牌；竞技模式：仅 showdown 亮牌
+        const revealAllCards = this.gameMode === 'training'
+            ? (this.phase === 'hand_over' || this.phase === 'showdown')
+            : (this.phase === 'showdown');
+        const showAiTypes = this.gameMode === 'training';
+
         return {
             players: this.players.map(p => ({
                 id: p.id,
                 name: p.name,
                 chips: p.chips,
-                handCards: p.isHuman ? p.handCards : (this.phase === 'hand_over' || this.phase === 'showdown' ? p.handCards : []),
+                handCards: p.isHuman ? p.handCards : (revealAllCards ? p.handCards : []),
                 currentBet: p.currentBet,
                 totalBetThisHand: p.totalBetThisHand,
                 isFolded: p.isFolded,
@@ -1706,6 +1723,8 @@ class PokerGame {
             humanHand: this.players[0].handCards,
             smallBlind: this.smallBlindAmount,
             bigBlind: this.bigBlindAmount,
+            revealAllCards,
+            showAiTypes,
         };
     }
 
@@ -1813,6 +1832,7 @@ class PokerGame {
         try {
             const save = {
                 timestamp: Date.now(),
+                gameMode: game.gameMode,
                 handNumber: game.handNumber,
                 phase: game.phase,
                 players: game.players.map(p => ({
