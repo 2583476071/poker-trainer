@@ -1376,6 +1376,15 @@ class PokerGame {
         const isMassiveOverbet = betPotRatio > 3;    // 下注超过底池3倍
         const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
 
+        // ===== 河牌极化策略（需在 raiseCapped 之前） =====
+        const isRiver = this.phase === 'river';
+        const handRank = this.communityCards.length >= 3 && hand.length === 2
+            ? evaluateHand([...hand, ...this.communityCards]).rank : 0;
+        const isNutHand = handRank >= 6;
+        const isBluffCandidate = handRank <= 1 && blockerScore > 0.4;
+        const isMiddleHand = !isNutHand && !isBluffCandidate;
+        const riverPolarized = isRiver && isMiddleHand;
+
         // 加注次数上限：本轮已加注 ≥5 次 → 禁止 AI 再加注
         // 河牌极化：中间牌不得主动加注
         const raiseCapped = this.raiseCountThisRound >= 5 || riverPolarized;
@@ -1448,19 +1457,6 @@ class PokerGame {
         if (isTrapping) {
             return { action: 'check' };
         }
-
-        // ===== 5. 河牌极化策略（职业级标志） =====
-        // 河牌只允许纯价值或纯诈唬，中间牌禁止主动下注
-        const isRiver = this.phase === 'river';
-        const handRank = this.communityCards.length >= 3 && hand.length === 2
-            ? evaluateHand([...hand, ...this.communityCards]).rank : 0;
-        const isNutHand = handRank >= 6;           // 葫芦+(6)或更强
-        const isStrongHand = handRank >= 4;         // 顺子+(4)或更强
-        const isBluffCandidate = handRank <= 1 && blockerScore > 0.4; // 弱牌+好阻断=可诈唬
-        const isMiddleHand = !isNutHand && !isBluffCandidate;
-
-        // 河牌强制极化：中间牌不得主动下注/加注
-        const riverPolarized = isRiver && isMiddleHand;
 
         // ===== 6. 动态阈值（四要素加权：MDF + 范围优势 + 阻断牌 + 牌面策略） =====
         // valueWeight 高 → 更倾向价值下注（降低 raiseThreshold）
