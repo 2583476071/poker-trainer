@@ -32,6 +32,156 @@ const AI_PERSONALITIES = [
     { name:'高手',   tightness:0.35, aggression:0.55, bluff:0.22, desc:'紧凶-最难缠' },
 ];
 
+// ==================== 翻前 GTO 范围表（100bb, 9-Max） ====================
+// 手牌编码：对子 "AA"-"22"，同花 "AKs"-"32s"，不同花 "AKo"-"32o"
+// 范围格式：{ pairs: [minRank], suited: [minRanks], offsuit: [minRanks] }
+// 每个位置定义 open / threeBet / call / fourBet 四个动作的范围
+
+function makeHandKey(rank1, rank2, suited) {
+    const high = RANK_VALUES[rank1] >= RANK_VALUES[rank2] ? rank1 : rank2;
+    const low  = RANK_VALUES[rank1] >= RANK_VALUES[rank2] ? rank2 : rank1;
+    if (rank1 === rank2) return high + high;                          // 对子: "AA"
+    return suited ? (high + low + 's') : (high + low + 'o');         // "AKs" / "AKo"
+}
+
+function handFromCards(c1, c2) {
+    return makeHandKey(c1.rank, c2.rank, c1.suit === c2.suit);
+}
+
+// 展开范围描述为手牌集合
+function expandRangeDesc(desc) {
+    const hands = new Set();
+    // 对子: { min: '7' } → 77-AA
+    if (desc.pairsMin) {
+        const startIdx = RANKS.indexOf(desc.pairsMin);
+        for (let i = startIdx; i < RANKS.length; i++) {
+            hands.add(RANKS[i] + RANKS[i]);
+        }
+    }
+    // 同花: [{ high: 'A', low: '9' }] → A9s,ATs,AJs,AQs,AKs
+    if (desc.suitedMin) {
+        for (const s of desc.suitedMin) {
+            const hiIdx = RANKS.indexOf(s.high);
+            const loIdx = RANKS.indexOf(s.low);
+            for (let hi = hiIdx; hi > loIdx; hi--) {
+                for (let lo = loIdx; lo < hi; lo++) {
+                    hands.add(RANKS[hi] + RANKS[lo] + 's');
+                }
+            }
+        }
+    }
+    // 不同花: [{ high: 'A', low: 'J' }] → AJo,AQo,AKo
+    if (desc.offsuitMin) {
+        for (const o of desc.offsuitMin) {
+            const hiIdx = RANKS.indexOf(o.high);
+            const loIdx = RANKS.indexOf(o.low);
+            for (let hi = hiIdx; hi > loIdx; hi--) {
+                for (let lo = loIdx; lo < hi; lo++) {
+                    hands.add(RANKS[hi] + RANKS[lo] + 'o');
+                }
+            }
+        }
+    }
+    return hands;
+}
+
+// 构建所有范围查找表
+function buildRangeLookup() {
+    const lookup = {};
+    const descs = PREFLOP_RANGE_DESCS;
+    for (const pos of Object.keys(descs)) {
+        lookup[pos] = {};
+        for (const action of Object.keys(descs[pos])) {
+            lookup[pos][action] = expandRangeDesc(descs[pos][action]);
+        }
+    }
+    return lookup;
+}
+
+// 范围描述（紧凑格式，启动时展开）
+const PREFLOP_RANGE_DESCS = {
+    // UTG / 早期位置 — 开池 ~10%
+    early: {
+        open: {
+            pairsMin: '7',                               // 77+
+            suitedMin:  [{ high:'A', low:'9' }, { high:'K', low:'T' }, { high:'Q', low:'T' }],
+            offsuitMin: [{ high:'A', low:'J' }, { high:'K', low:'Q' }]
+        },
+        threeBet: {
+            pairsMin: 'Q',                               // QQ+
+            suitedMin:  [{ high:'A', low:'K' }],         // AKs
+            offsuitMin: []
+        },
+        call: {
+            pairsMin: '8',                               // 88-JJ (minus QQ+ in threeBet)
+            suitedMin:  [{ high:'A', low:'Q' }, { high:'K', low:'Q' }],
+            offsuitMin: [{ high:'A', low:'Q' }]
+        }
+    },
+    // MP / 中位 — 开池 ~18%
+    middle: {
+        open: {
+            pairsMin: '5',                               // 55+
+            suitedMin:  [{ high:'A', low:'5' }, { high:'K', low:'9' }, { high:'Q', low:'9' }, { high:'J', low:'9' }],
+            offsuitMin: [{ high:'A', low:'T' }, { high:'K', low:'J' }, { high:'Q', low:'J' }]
+        },
+        threeBet: {
+            pairsMin: 'J',                               // JJ+
+            suitedMin:  [{ high:'A', low:'K' }, { high:'A', low:'Q' }],
+            offsuitMin: [{ high:'A', low:'K' }]
+        },
+        call: {
+            pairsMin: '6',
+            suitedMin:  [{ high:'A', low:'T' }, { high:'K', low:'Q' }, { high:'K', low:'J' }],
+            offsuitMin: [{ high:'A', low:'J' }, { high:'K', low:'Q' }]
+        }
+    },
+    // CO / 后位 — 开池 ~30%
+    late: {
+        open: {
+            pairsMin: '2',                               // 22+
+            suitedMin:  [{ high:'A', low:'2' }, { high:'K', low:'5' }, { high:'Q', low:'8' },
+                         { high:'J', low:'8' }, { high:'T', low:'8' }],
+            offsuitMin: [{ high:'A', low:'8' }, { high:'K', low:'9' }, { high:'Q', low:'9' },
+                         { high:'J', low:'9' }, { high:'T', low:'9' }]
+        },
+        threeBet: {
+            pairsMin: 'T',                               // TT+
+            suitedMin:  [{ high:'A', low:'K' }, { high:'A', low:'Q' }, { high:'A', low:'J' }, { high:'K', low:'Q' }],
+            offsuitMin: [{ high:'A', low:'K' }, { high:'A', low:'Q' }]
+        },
+        call: {
+            pairsMin: '2',
+            suitedMin:  [{ high:'A', low:'2' }, { high:'K', low:'9' }, { high:'Q', low:'9' },
+                         { high:'J', low:'9' }, { high:'T', low:'8' }],
+            offsuitMin: [{ high:'A', low:'9' }, { high:'K', low:'T' }, { high:'Q', low:'T' }, { high:'J', low:'T' }]
+        }
+    }
+};
+
+// 初始化范围查找表
+const PREFLOP_RANGE_LOOKUP = buildRangeLookup();
+
+/** 检查手牌是否在指定位置/动作范围内 */
+function isInPreflopRange(handKey, position, action) {
+    const posRanges = PREFLOP_RANGE_LOOKUP[position];
+    if (!posRanges) return false;
+    const range = posRanges[action];
+    if (!range) return false;
+    return range.has(handKey);
+}
+
+/** 获取手牌在范围内的角色：open / threeBet / call / null（不在范围内） */
+function getPreflopAction(handKey, position, facingRaise) {
+    if (!facingRaise) {
+        return isInPreflopRange(handKey, position, 'open') ? 'open' : null;
+    }
+    // 面对加注：先检查 3-bet，再检查跟注
+    if (isInPreflopRange(handKey, position, 'threeBet')) return 'threeBet';
+    if (isInPreflopRange(handKey, position, 'call')) return 'call';
+    return null;
+}
+
 
 // ==================== 牌桌工具 ====================
 
@@ -970,6 +1120,95 @@ class PokerGame {
         return Math.max(flushDrawBonus, straightDrawBonus);
     }
 
+    // ========== 翻前 GTO 范围决策 ==========
+
+    /** 基于 GTO 范围表的翻前决策（仅翻前调用） */
+    preflopRangeDecision(player, position, isCheckedToMe, profile, stacks, board) {
+        const handKey = handFromCards(player.handCards[0], player.handCards[1]);
+        const toCall = this.currentBetLevel - player.currentBet;
+
+        // 确定位置对应的范围键
+        let rangePos = position; // early / middle / late
+
+        // 人数少时位置放宽
+        const activeCount = this.countActivePlayers();
+        if (activeCount <= 3) rangePos = 'late';
+        else if (activeCount <= 5 && position === 'middle') rangePos = 'late';
+
+        const raiseCount = this.raiseCountThisRound;
+        const facingRaise = !isCheckedToMe;
+
+        // ===== 场景1: 无人加注（checked to me）→ 开池或过牌 =====
+        if (!facingRaise) {
+            // 已有 ≥1 次加注后又回到我 → 过牌（不应再加注）
+            if (raiseCount >= 1) {
+                return { action: 'check' };
+            }
+
+            // 在开池范围内 → 加注开池
+            if (isInPreflopRange(handKey, rangePos, 'open')) {
+                // 高手偶尔用标准尺度开池，娱乐型偏好小额
+                const agg = profile.aggression;
+                let multiplier;
+                if (agg > 0.45)      multiplier = 1.0 + Math.random() * 0.3;  // 1.0-1.3x pot
+                else if (agg > 0.30) multiplier = 1.0 + Math.random() * 0.2;  // 1.0-1.2x pot
+                else                 multiplier = 1.0;                          // min raise
+
+                const raiseTo = Math.floor(this.currentBetLevel * multiplier);
+                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
+                    return { action: 'raise', multiplier };
+                }
+                return { action: 'call' };
+            }
+
+            // 不在开池范围 → 过牌（如果免费）或弃牌
+            return isCheckedToMe ? { action: 'check' } : { action: 'fold' };
+        }
+
+        // ===== 场景2: 面对加注 → 3-bet / 跟注 / 弃牌 =====
+
+        // ≥3 次加注后：只需要考虑全下或弃牌（4-bet+ 范围极紧）
+        if (raiseCount >= 3) {
+            if (isInPreflopRange(handKey, rangePos, 'threeBet') && player.chips > 0) {
+                if (Math.random() < 0.7) return { action: 'allin' };
+                return { action: 'call' };
+            }
+            return { action: 'fold' };
+        }
+
+        // 面对首次或第二次加注
+        if (isInPreflopRange(handKey, rangePos, 'threeBet')) {
+            // 在 3-bet 范围内 → 再加注
+            const multiplier = 1.3 + Math.random() * 0.3; // 1.3-1.6x
+            const raiseTo = Math.floor(this.currentBetLevel * multiplier);
+            if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
+                return { action: 'raise', multiplier };
+            }
+            return { action: 'call' };
+        }
+
+        if (isInPreflopRange(handKey, rangePos, 'call')) {
+            // 在跟注范围内 → 跟注（高手偶尔半诈唬加注）
+            if (profile.aggression > 0.40 && Math.random() < 0.15 && raiseCount < 2) {
+                const multiplier = 1.3 + Math.random() * 0.2;
+                const raiseTo = Math.floor(this.currentBetLevel * multiplier);
+                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
+                    return { action: 'raise', multiplier };
+                }
+            }
+            if (toCall <= player.chips) return { action: 'call' };
+            if (Math.random() < 0.5) return { action: 'allin' };
+            return { action: 'fold' };
+        }
+
+        // 不在任何范围内 → 弃牌（娱乐型偶尔跟注看牌）
+        if (profile.tightness > 0.60 && Math.random() < 0.12 && this.raiseCountThisRound === 0) {
+            if (toCall <= player.chips * 0.3) return { action: 'call' };
+        }
+
+        return { action: 'fold' };
+    }
+
     // ========== AI 决策 ==========
 
     aiDecide(player) {
@@ -982,41 +1221,23 @@ class PokerGame {
         const stacks = this.analyzeStacks(player);
         const drawBonus = this.evaluateDrawPotential(player);
 
-        // ===== 2. 手牌强度评估 =====
-        let handStrength;
-        if (this.communityCards.length === 0) {
-            handStrength = this.evaluatePreflop(hand);
-        } else {
-            const all7 = [...hand, ...this.communityCards];
-            handStrength = all7.length >= 5
-                ? evaluateHand(all7).rank / 9
-                : 0.3;
-        }
-
-        // 位置加成和听牌加成
-        const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
-        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus);
-
-        // ===== 3. 下注上下文 + GTO 参数（需在翻牌前收紧之前） =====
+        // ===== 2. 下注上下文 =====
         const toCall = this.currentBetLevel - player.currentBet;
         const potAfterCall = totalPot(this.players) + toCall;
         const potOdds = toCall > 0 ? toCall / (potAfterCall || 1) : 0;
         const isCheckedToMe = toCall === 0;
-
-        // ===== 翻牌前范围收紧 =====
         const isPreflop = this.communityCards.length === 0;
-        if (isPreflop) {
-            // 位置惩罚（翻牌前位置是决定性因素）
-            const preflopPosPenalty = position === 'early' ? -0.18 :
-                                      (position === 'middle' ? -0.08 : 0);
-            effectiveStrength += preflopPosPenalty;
 
-            // 面对再加注时，有效牌力递减（3-bet/4-bet 需要更强牌）
-            if (!isCheckedToMe && this.raiseCountThisRound >= 2) {
-                const extraFolds = (this.raiseCountThisRound - 1) * 0.10;
-                effectiveStrength -= extraFolds;
-            }
+        // ===== 3. 翻前：GTO 范围表决策（直接返回，不进入翻后引擎） =====
+        if (isPreflop) {
+            return this.preflopRangeDecision(player, position, isCheckedToMe, profile, stacks, board);
         }
+
+        // ===== 4. 翻后：手牌强度评估 =====
+        const all7 = [...hand, ...this.communityCards];
+        const handStrength = all7.length >= 5 ? evaluateHand(all7).rank / 9 : 0.3;
+        const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
+        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus);
 
         // GTO: MDF 最低防守频率 + 范围优势
         const mdf = this.calculateMDF();
@@ -1104,16 +1325,10 @@ class PokerGame {
             return { action: 'check' };
         }
 
-        // ===== 5. 动态阈值（GTO 增强 + 超池保护） =====
-        // 翻牌前弃牌阈值翻倍（preflop 必须更紧）
-        const preflopTightness = isPreflop ? 2.0 : 1.0;
-        // 再加注轮次进一步收紧
-        const raisePressure = 1.0 + this.raiseCountThisRound * 0.15;
-
-        const foldThreshold  = (Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty)
-                               * preflopTightness * raisePressure;
+        // ===== 5. 动态阈值（翻后 GTO 增强 + 超池保护） =====
+        const foldThreshold  = Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty;
         const betThreshold   = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost);
-        const raiseThreshold = Math.max(0.45,
+        const raiseThreshold = Math.max(0.40,
             (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08);
 
         // ===== 6. 核心决策（混合策略边界） =====
@@ -1121,8 +1336,8 @@ class PokerGame {
 
         // 手牌弱 → 考虑弃牌（MDF 提供"再次考虑跟注"的机会）
         if (effectiveStrength < foldThreshold && toCall > 0) {
-            // MDF 防守：仅翻牌后启用，超池下注时禁用（翻牌前范围收紧已足够）
-            if (!isPreflop && !isMassiveOverbet && effectiveStrength > gtoFoldThreshold && Math.random() < 0.35) {
+            // MDF 防守：超池下注时禁用
+            if (!isMassiveOverbet && effectiveStrength > gtoFoldThreshold && Math.random() < 0.35) {
                 return { action: 'call' };
             }
             if (potOdds < 0.18 && effectiveStrength > foldThreshold * 0.55) {
