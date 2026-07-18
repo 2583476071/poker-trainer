@@ -1339,7 +1339,8 @@ class PokerGame {
         const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
 
         // 加注次数上限：本轮已加注 ≥5 次 → 禁止 AI 再加注
-        const raiseCapped = this.raiseCountThisRound >= 5;
+        // 河牌极化：中间牌不得主动加注
+        const raiseCapped = this.raiseCountThisRound >= 5 || riverPolarized;
 
         // ===== 4. 特殊策略（按优先级排列） =====
 
@@ -1410,11 +1411,24 @@ class PokerGame {
             return { action: 'check' };
         }
 
-        // ===== 5. 动态阈值（翻后 GTO 增强 + 超池保护） =====
+        // ===== 5. 河牌极化策略（职业级标志） =====
+        // 河牌只允许纯价值或纯诈唬，中间牌禁止主动下注
+        const isRiver = this.phase === 'river';
+        const handRank = this.communityCards.length >= 3 && hand.length === 2
+            ? evaluateHand([...hand, ...this.communityCards]).rank : 0;
+        const isNutHand = handRank >= 6;           // 葫芦+(6)或更强
+        const isStrongHand = handRank >= 4;         // 顺子+(4)或更强
+        const isBluffCandidate = handRank <= 1 && blockerScore > 0.4; // 弱牌+好阻断=可诈唬
+        const isMiddleHand = !isNutHand && !isBluffCandidate;
+
+        // 河牌强制极化：中间牌不得主动下注/加注
+        const riverPolarized = isRiver && isMiddleHand;
+
+        // ===== 6. 动态阈值（翻后 GTO 增强 + 超池保护） =====
         const foldThreshold  = Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty;
         const betThreshold   = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost);
-        const raiseThreshold = Math.max(0.40,
-            (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08);
+        const raiseThreshold = Math.max(isRiver ? 0.55 : 0.40,
+            (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08 + (isRiver ? 0.10 : 0));
 
         // ===== 6. 核心决策（混合策略边界） =====
         const margin = 0.06; // 混合区间宽度
