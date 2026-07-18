@@ -982,23 +982,44 @@ class PokerGame {
             connectivity = closeGaps / (uniqueRanks.length - 1);
         }
 
-        // 牌面分类: dry / medium / wet / made
-        const drawCount = (flushPossible ? 1 : 0) + (straightPossible ? 1 : 0);
-        const flushMade = Object.values(suitCounts).some(c => c >= 4);
-        const straightMade = uniqueRanks.length >= 5 &&
-            uniqueRanks.some((_, i) => i + 4 < uniqueRanks.length && uniqueRanks[i + 4] - uniqueRanks[i] === 4);
-
-        let category = 'medium';
-        if (flushMade || straightMade) {
-            category = 'made';
-        } else if (drawCount >= 2 || (paired && drawCount >= 1)) {
-            category = 'wet';
-        } else if (drawCount === 0 && !paired && highCards <= 1) {
-            category = 'dry';
+        // === 五类牌面分类（职业级） ===
+        // 分类优先级: 成对 > 湿润同花 > 顺子 > 干燥高牌 > 彩虹安全
+        let boardType;
+        if (paired) {
+            boardType = 'paired';           // 成对牌面: 8♠8♥3♦
+        } else if (flushPossible) {
+            boardType = 'wet_flush';        // 湿润同花面: A♥K♥2♥
+        } else if (straightPossible) {
+            boardType = 'straight';         // 顺子面: 7♠8♥9♦
+        } else if (highCards >= 2) {
+            boardType = 'dry_high';         // 干燥高牌面: A♠K♥7♦
+        } else {
+            boardType = 'rainbow_safe';     // 彩虹安全面: 2♠5♥9♦
         }
 
+        // 保留旧字段兼容
+        const drawCount = (flushPossible ? 1 : 0) + (straightPossible ? 1 : 0);
+        let oldCategory = 'medium';
+        if (boardType === 'paired' && drawCount >= 1) oldCategory = 'wet';
+        else if (boardType === 'wet_flush' || boardType === 'straight') oldCategory = 'wet';
+        else if (boardType === 'dry_high') oldCategory = 'medium';
+        else if (boardType === 'rainbow_safe') oldCategory = 'dry';
+
         return { scary, paired, flushPossible, straightPossible, highCards,
-                 category, avgRank, connectivity };
+                 category: oldCategory, boardType, avgRank, connectivity };
+    }
+
+    /** 获取牌面类型对应的策略模板 */
+    getBoardStrategy(boardType) {
+        // 策略模板: { cbetFreq, betSize, valueWeight, bluffWeight }
+        const strategies = {
+            dry_high:      { cbetFreq: 0.65, betSize: 0.50, valueWeight: 0.7, bluffWeight: 0.3, desc: '干燥高牌面' },
+            wet_flush:     { cbetFreq: 0.45, betSize: 0.67, valueWeight: 0.5, bluffWeight: 0.5, desc: '湿润同花面' },
+            paired:        { cbetFreq: 0.55, betSize: 0.33, valueWeight: 0.6, bluffWeight: 0.4, desc: '成对牌面' },
+            straight:      { cbetFreq: 0.35, betSize: 0.50, valueWeight: 0.5, bluffWeight: 0.3, desc: '顺子面' },
+            rainbow_safe:  { cbetFreq: 0.75, betSize: 0.50, valueWeight: 0.8, bluffWeight: 0.4, desc: '彩虹安全面' },
+        };
+        return strategies[boardType] || strategies.rainbow_safe;
     }
 
     /** 分析筹码相对位置 */
@@ -1057,12 +1078,13 @@ class PokerGame {
     pickGTOMultiplier(profile, board, situation) {
         // 基于牌面类型的基础乘数
         let base;
-        switch (board ? board.category : 'medium') {
-            case 'dry':    base = 1.25; break;
-            case 'medium': base = 1.45; break;
-            case 'wet':    base = 1.70; break;
-            case 'made':   base = 2.00; break;
-            default:       base = 1.45;
+        switch (board ? board.boardType : 'rainbow_safe') {
+            case 'paired':       base = 1.20; break;  // 成对→小注
+            case 'rainbow_safe': base = 1.35; break;  // 安全→标准
+            case 'dry_high':     base = 1.45; break;  // 高牌→标准+
+            case 'straight':     base = 1.60; break;  // 顺子→中等
+            case 'wet_flush':    base = 1.80; break;  // 湿润→大注
+            default:             base = 1.45;
         }
 
         // 行动场景微调
@@ -1268,7 +1290,7 @@ class PokerGame {
 
         // 4b. 偷盲/偷底：干燥牌面更好偷
         if (!raiseCapped && position === 'late' && isCheckedToMe && effectiveStrength > 0.25) {
-            const dryBonus = board.category === 'dry' ? 0.15 : 0;
+            const dryBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 0.15 : 0;
             const stealChance = profile.aggression * 0.6 + (stacks.isBigStack ? 0.2 : 0) + dryBonus;
             if (Math.random() < stealChance) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'steal') };
@@ -1295,7 +1317,7 @@ class PokerGame {
 
         // 4e. 半诈唬
         if (!raiseCapped && drawBonus > 0.05 && position !== 'early' && isCheckedToMe && effectiveStrength > 0.3) {
-            const semiBluffChance = profile.aggression * 0.5 + (board.category === 'wet' ? 0.1 : 0);
+            const semiBluffChance = profile.aggression * 0.5 + (board.boardType === 'wet_flush' ? 0.1 : 0);
             if (Math.random() < semiBluffChance) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'semibluff') };
             }
@@ -1303,7 +1325,7 @@ class PokerGame {
 
         // 4f. 情景化诈唬：干燥面也适合诈唬（牌面没帮到对手）
         if (!raiseCapped && isCheckedToMe && effectiveStrength < 0.5) {
-            const boardBluffBonus = board.category === 'dry' ? 1.2 : (board.scary ? 1.5 : 1.0);
+            const boardBluffBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 1.2 : (board.scary ? 1.5 : 1.0);
             const bluffMultiplier = boardBluffBonus * (position === 'late' ? 1.3 : 1.0);
             if (Math.random() < profile.bluff * bluffMultiplier) {
                 if (player.chips > this.currentBetLevel * 2 + BIG_BLIND) {
