@@ -1142,6 +1142,66 @@ class PokerGame {
         return Math.max(flushDrawBonus, straightDrawBonus);
     }
 
+    /** 阻断牌评估：量化手牌对对手范围的阻断能力，返回 0-10 分 */
+    evaluateBlockers(hand, board) {
+        if (hand.length < 2 || this.communityCards.length < 3) return 0;
+        let score = 0;
+
+        const [c1, c2] = hand;
+        const handRanks = [c1.rankValue, c2.rankValue];
+        const handSuits = [c1.suit, c2.suit];
+
+        // === 1. 坚果阻断（最高5分） ===
+        const boardRanks = this.communityCards.map(c => c.rankValue);
+        const allRanks = [...boardRanks, ...handRanks].sort((a, b) => a - b);
+        const uniqueRanks = [...new Set(allRanks)];
+
+        // 顺子坚果阻断：检查手牌是否阻断了对手的顺子
+        for (const r of handRanks) {
+            // 检查是否存在 3 张连续牌 + 手牌形成 4 连 → 阻断两端
+            const sorted = [...boardRanks].sort((a, b) => a - b);
+            for (let i = 0; i + 2 < sorted.length; i++) {
+                if (sorted[i + 2] - sorted[i] <= 4) {
+                    // 有顺子可能，检查手牌是否阻断了关键牌
+                    const gap = sorted[i + 2] - sorted[i];
+                    if (gap === 2 && (r === sorted[i] - 1 || r === sorted[i + 2] + 1)) {
+                        score += 4; // 阻断两头顺的关键张
+                    } else if (gap <= 3 && (r >= sorted[i] - 1 && r <= sorted[i + 2] + 1)) {
+                        score += 2; // 在顺子范围内
+                    }
+                }
+            }
+        }
+        // 同花坚果阻断
+        const suitCounts = {};
+        this.communityCards.forEach(c => { suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1; });
+        for (const [suit, count] of Object.entries(suitCounts)) {
+            if (count >= 3 && handSuits.includes(suit)) {
+                // 手牌与牌面同花 → 阻断对手同花（你有的花色别人就少了）
+                const highSuitCards = handRanks.filter((_, i) => handSuits[i] === suit);
+                if (highSuitCards.some(r => r >= 10)) score += 5; // 高同花阻断
+                else score += 3;
+            }
+        }
+
+        // === 2. 范围阻断（最高3分） ===
+        // 手牌中有 A/K → 阻断对手 AA/KK/AK 等强牌组合
+        for (const r of handRanks) {
+            if (r === 14) score += 2;      // 有A阻断对手AA
+            else if (r === 13) score += 1; // 有K阻断对手KK/AK
+        }
+
+        // === 3. 听牌阻断（最高2分） ===
+        // 在手牌阻断的 suit 上，对手的同花听牌减少
+        for (const s of handSuits) {
+            if (suitCounts[s] && suitCounts[s] >= 2) {
+                score += 1; // 持有该花色减少对手同花听牌可能
+            }
+        }
+
+        return Math.min(10, score);
+    }
+
     // ========== 翻前 GTO 范围决策 ==========
 
     /** 基于 GTO 范围表的翻前决策（仅翻前调用） */
@@ -1259,7 +1319,9 @@ class PokerGame {
         const all7 = [...hand, ...this.communityCards];
         const handStrength = all7.length >= 5 ? evaluateHand(all7).rank / 9 : 0.3;
         const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
-        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus);
+        const blockerScore = this.evaluateBlockers(hand, board) / 10; // 归一化到 0-1
+        // 阻断牌主要影响诈唬价值，对实际牌力加成有限
+        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus + blockerScore * 0.08);
 
         // GTO: MDF 最低防守频率 + 范围优势
         const mdf = this.calculateMDF();
@@ -1323,10 +1385,11 @@ class PokerGame {
             }
         }
 
-        // 4f. 情景化诈唬：干燥面也适合诈唬（牌面没帮到对手）
+        // 4f. 情景化诈唬：干燥面适合诈唬，有好阻断牌更容易诈唬
         if (!raiseCapped && isCheckedToMe && effectiveStrength < 0.5) {
             const boardBluffBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 1.2 : (board.scary ? 1.5 : 1.0);
-            const bluffMultiplier = boardBluffBonus * (position === 'late' ? 1.3 : 1.0);
+            const blockerBluffBonus = 1.0 + blockerScore * 0.5; // 好阻断牌→更敢诈唬
+            const bluffMultiplier = boardBluffBonus * (position === 'late' ? 1.3 : 1.0) * blockerBluffBonus;
             if (Math.random() < profile.bluff * bluffMultiplier) {
                 if (player.chips > this.currentBetLevel * 2 + BIG_BLIND) {
                     return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluff') };
@@ -1336,7 +1399,7 @@ class PokerGame {
 
         // 需要跟注时的诈唬加注（超池下注时禁用——诈唬成本太高）
         if (!raiseCapped && !isCheckedToMe && effectiveStrength < 0.35 && toCall > 0 && !isMassiveOverbet) {
-            const bluffVsBet = profile.bluff * (board.scary ? 1.3 : 1.0);
+            const bluffVsBet = profile.bluff * (board.scary ? 1.3 : 1.0) * (1.0 + blockerScore * 0.4);
             if (Math.random() < bluffVsBet && player.chips > toCall * 3) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluffraise') };
             }
