@@ -1293,7 +1293,41 @@ class PokerGame {
 
     // ========== AI 决策 ==========
 
+    /** 混合策略扰动：职业级 AI 不可预测 */
+    applyMixedStrategy(decision, profile, effectiveStrength, isCheckedToMe) {
+        if (!decision) return decision;
+
+        // 扰动概率：松凶型高，紧弱型低
+        const deviateChance = profile.aggression * 0.25 + (1 - profile.tightness) * 0.1;
+
+        if (Math.random() < deviateChance) {
+            const roll = Math.random();
+            if (decision.action === 'raise' && roll < 0.3 && isCheckedToMe) {
+                // 偶尔慢打强牌：加注→过牌
+                return { action: 'check' };
+            } else if (decision.action === 'raise' && roll < 0.15) {
+                // 偶尔加大尺度
+                return { action: 'raise', multiplier: (decision.multiplier || 1.5) + 0.3 };
+            } else if (decision.action === 'call' && roll < 0.2 && effectiveStrength > 0.6) {
+                // 强牌偶尔再加注而非仅仅跟注
+                return { action: 'raise', multiplier: 1.3 + Math.random() * 0.3 };
+            } else if (decision.action === 'check' && roll < 0.2 && effectiveStrength > 0.4) {
+                // 中等牌偶尔主动下注
+                return { action: 'raise', multiplier: 1.0 + Math.random() * 0.2 };
+            }
+        }
+        return decision;
+    }
+
     aiDecide(player) {
+        const decision = this._aiDecideCore(player);
+        return this.applyMixedStrategy(decision, player.aiProfile,
+            player._lastEffectiveStrength || 0.5,
+            (this.currentBetLevel - player.currentBet) === 0);
+    }
+
+    /** AI 决策核心（翻前+翻后） */
+    _aiDecideCore(player) {
         const profile = player.aiProfile;
         const hand = player.handCards;
 
@@ -1302,6 +1336,9 @@ class PokerGame {
         const board = this.analyzeBoard();
         const stacks = this.analyzeStacks(player);
         const drawBonus = this.evaluateDrawPotential(player);
+
+        // 牌面策略模板（四要素加权用）
+        const boardStrat = this.getBoardStrategy(board.boardType);
 
         // ===== 2. 下注上下文 =====
         const toCall = this.currentBetLevel - player.currentBet;
@@ -1322,6 +1359,7 @@ class PokerGame {
         const blockerScore = this.evaluateBlockers(hand, board) / 10; // 归一化到 0-1
         // 阻断牌主要影响诈唬价值，对实际牌力加成有限
         let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus + blockerScore * 0.08);
+        player._lastEffectiveStrength = effectiveStrength; // 供混合策略使用
 
         // GTO: MDF 最低防守频率 + 范围优势
         const mdf = this.calculateMDF();
@@ -1365,8 +1403,8 @@ class PokerGame {
             this.phase === 'flop' &&
             isCheckedToMe &&
             this.communityCards.length === 3) {
-            const cbetBase = profile.aggression * 0.8;
-            const cbetChance = cbetBase + rangeAdv * 0.25; // 有优势多c-bet，无优势少c-bet
+            const cbetBase = boardStrat.cbetFreq; // 用牌面策略模板的 C-bet 频率
+            const cbetChance = cbetBase + rangeAdv * 0.20 + (profile.aggression - 0.35) * 0.3;
             if (Math.random() < Math.max(0.15, Math.min(0.95, cbetChance))) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'cbet') };
             }
@@ -1424,11 +1462,18 @@ class PokerGame {
         // 河牌强制极化：中间牌不得主动下注/加注
         const riverPolarized = isRiver && isMiddleHand;
 
-        // ===== 6. 动态阈值（翻后 GTO 增强 + 超池保护） =====
-        const foldThreshold  = Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty;
-        const betThreshold   = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost);
+        // ===== 6. 动态阈值（四要素加权：MDF + 范围优势 + 阻断牌 + 牌面策略） =====
+        // valueWeight 高 → 更倾向价值下注（降低 raiseThreshold）
+        // bluffWeight 高 → 提高 foldThreshold（减少跟注，多诈唬或弃牌）
+        const valueFusion  = rangeAdv * 0.4 + blockerScore * 0.3 + boardStrat.valueWeight * 0.3;
+        const callFusion   = mdf * 0.5 + rangeAdv * 0.3 + (1 - boardStrat.bluffWeight) * 0.2;
+
+        const foldThreshold  = (Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty)
+                               * (1.0 + boardStrat.bluffWeight * 0.3); // 湿润面更倾向弃牌
+        const betThreshold   = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost - valueFusion * 0.15);
         const raiseThreshold = Math.max(isRiver ? 0.55 : 0.40,
-            (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08 + (isRiver ? 0.10 : 0));
+            (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08 + (isRiver ? 0.10 : 0)
+            - valueFusion * 0.20);
 
         // ===== 6. 核心决策（混合策略边界） =====
         const margin = 0.06; // 混合区间宽度
