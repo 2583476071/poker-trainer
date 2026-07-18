@@ -1714,7 +1714,9 @@ class PokerGame {
                 id: p.id,
                 name: p.name,
                 chips: p.chips,
-                handCards: p.isHuman ? p.handCards : (revealAllCards ? p.handCards : []),
+                // 竞技模式亮牌时：弃牌玩家不亮牌
+                handCards: p.isHuman ? p.handCards :
+                    (revealAllCards ? (this.gameMode === 'competitive' && p.isFolded ? [] : p.handCards) : []),
                 currentBet: p.currentBet,
                 totalBetThisHand: p.totalBetThisHand,
                 isFolded: p.isFolded,
