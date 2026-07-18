@@ -450,6 +450,7 @@ function updateStatsPanel() {
 function initNickname() {
     const overlay = document.getElementById('nicknameOverlay');
     const input = document.getElementById('nicknameInput');
+    const inputP = input.previousElementSibling; // <p>输入昵称开始游戏</p>
     const btn = document.getElementById('btnStartGame');
     const hint = document.getElementById('modeHint');
 
@@ -467,20 +468,25 @@ function initNickname() {
 
     const existing = PokerGame.loadAccount();
     if (existing) {
-        // 已有账号 → 直接进
+        // 已有账号 → 显示模式选择（昵称预填隐藏）
         game.setNickname(existing.nickname);
-        overlay.style.display = 'none';
-        checkSavedGame();
+        input.style.display = 'none';
+        inputP.textContent = '欢迎回来，' + existing.nickname + '！选择模式';
+        overlay.style.display = 'flex';
+        btn.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            checkSavedGame(selectedMode);
+        });
         return;
     }
 
-    // 新用户 → 显示昵称输入
+    // 新用户 → 显示昵称输入 + 模式选择
     overlay.style.display = 'flex';
     btn.addEventListener('click', () => {
         const name = input.value.trim() || '玩家';
         game.setNickname(name);
         overlay.style.display = 'none';
-        startGame(false, selectedMode);
+        checkSavedGame(selectedMode);
     });
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') btn.click();
@@ -488,9 +494,10 @@ function initNickname() {
 }
 
 // ===== 存档恢复 =====
-function checkSavedGame() {
+function checkSavedGame(mode) {
+    const selectedMode = mode || 'training';
     const save = PokerGame.loadGame();
-    if (!save) { startGame(false); return; }
+    if (!save) { startGame(false, selectedMode); return; }
 
     const overlay = document.getElementById('resumeOverlay');
     const info = document.getElementById('resumeInfo');
@@ -500,12 +507,12 @@ function checkSavedGame() {
     overlay.classList.remove('hidden');
     document.getElementById('btnResume').onclick = () => {
         overlay.classList.add('hidden');
-        startGame(true);
+        startGame(true, selectedMode);
     };
     document.getElementById('btnNewGame').onclick = () => {
         overlay.classList.add('hidden');
         PokerGame.clearSave();
-        startGame(false);
+        startGame(false, selectedMode);
     };
 }
 
