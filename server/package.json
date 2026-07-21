@@ -1,0 +1,13 @@
+{
+  "name": "poker-trainer-server",
+  "version": "1.0.0",
+  "description": "德州扑克 AI 训练器 — 联机服务器",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "socket.io": "^4.7.0"
+  }
+}
