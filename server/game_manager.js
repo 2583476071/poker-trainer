@@ -4,7 +4,8 @@
 
 const { Room } = require('./room.js');
 const { PokerGame } = require('./poker_game.js');
-const { shuffle, AI_PERSONALITIES, STARTING_CHIPS, SMALL_BLIND, BIG_BLIND } = require('../shared/constants.js');
+const { AI_PERSONALITIES, STARTING_CHIPS, SMALL_BLIND, BIG_BLIND } = require('../shared/constants.js');
+const { shuffle } = require('../shared/deck.js');
 
 class GameManager {
     constructor() {
