@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>联机测试</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;color:#eee;font-family:monospace;padding:20px;max-width:600px;margin:0 auto}
+h2{color:#4fc3f7;margin:16px 0 8px}
+input,button{font-size:14px;padding:8px 12px;margin:4px;border-radius:4px;border:none}
+input{background:#16213e;color:#eee;border:1px solid #333}
+button{background:#0f3460;color:#eee;cursor:pointer}
+button:hover{background:#1a5080}
+button.action{background:#2d6a4f;margin:2px}
+button.action:hover{background:#40916c}
+button.fold{background:#9b2226}
+button.fold:hover{background:#ae2012}
+#log{background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:12px;height:250px;overflow-y:auto;font-size:12px;margin:8px 0}
+#log .info{color:#aaa}
+#log .warn{color:#f0c040}
+#log .good{color:#4fc3f7}
+#state{background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:12px;min-height:80px;font-size:13px}
+.hidden{display:none}
+.room-code{font-size:24px;color:#f0c040;letter-spacing:4px;text-align:center;padding:12px}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;margin:2px}
+.badge-dealer{background:#f0c040;color:#000}
+.badge-blind{background:#888;color:#000}
+</style>
+</head>
+<body>
+
+<h1>🃏 联机测试</h1>
+
+<div id="lobby">
+    <h2>大厅</h2>
+    <input id="nickInput" placeholder="你的昵称" maxlength="8" value="测试员">
+    <button onclick="createRoom()">创建房间</button>
+    <br>
+    <input id="codeInput" placeholder="房间码" maxlength="6" style="width:80px">
+    <button onclick="joinRoom()">加入房间</button>
+    <div id="roomInfo" class="hidden">
+        <div class="room-code" id="roomCode"></div>
+        <div id="playerList"></div>
+        <button id="btnStart" onclick="startGame()" class="hidden">开始游戏</button>
+    </div>
+</div>
+
+<div id="gamePanel" class="hidden">
+    <h2>游戏</h2>
+    <div id="state"></div>
+    <div id="actions" class="hidden" style="margin-top:8px">
+        <button class="action fold" onclick="act('fold')">弃牌</button>
+        <button class="action" onclick="act('check')">过牌</button>
+        <button class="action" onclick="act('call')">跟注</button>
+        <button class="action" onclick="act('raise', 1.3)">+30%</button>
+        <button class="action" onclick="act('raise', 1.5)">+50%</button>
+        <button class="action" onclick="act('allin')">All-in</button>
+        <button class="action" onclick="act('next')">下一局</button>
+    </div>
+</div>
+
+<div id="log"><div class="info">等待操作...</div></div>
+
+<script>
+const SUITS = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' };
+let socket, myId, currentRoom, currentState;
+
+function log(msg, cls='info') {
+    const d = document.getElementById('log');
+    d.innerHTML += `<div class="${cls}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+    d.scrollTop = d.scrollHeight;
+}
+
+// ===== 连接 =====
+socket = io({ transports: ['websocket'] });
+socket.on('connect', () => log('已连接: ' + socket.id, 'good'));
+socket.on('disconnect', () => log('已断开', 'warn'));
+
+// ===== 房间事件 =====
+socket.on('room_state', (state) => {
+    document.getElementById('roomCode').textContent = state.code;
+    document.getElementById('roomInfo').classList.remove('hidden');
+    document.getElementById('btnStart').classList.toggle('hidden', myId !== state.hostId);
+    document.getElementById('playerList').innerHTML = state.players.map(p =>
+        `<div>${p.name} ${p.ready ? '✅' : '⏳'} ${p.connected ? '' : '🔌'} ${p.id === state.hostId ? '(房主)' : ''}</div>`
+    ).join('');
+    log(`房间 ${state.code}: ${state.playerCount}人`, 'good');
+    currentRoom = state.code;
+});
+
+// ===== 游戏事件 =====
+socket.on('state_update', (state) => {
+    currentState = state;
+    document.getElementById('gamePanel').classList.remove('hidden');
+
+    const cards = state.myCards.map(c => c.rank + SUITS[c.suit]).join(' ');
+    const comm = state.communityCards.map(c => c.rank + SUITS[c.suit]).join(' ') || '—';
+
+    document.getElementById('state').innerHTML = `
+        <div>🃏 手牌: <b>${cards || '—'}</b></div>
+        <div>🂭 公共牌: ${comm}</div>
+        <div>💰 底池: ${state.pot} | 积分: ${state.myChips}</div>
+        <div>📋 第${state.handNumber}手 | ${state.phase} | 盲注 ${state.smallBlind}/${state.bigBlind}</div>
+        <div>💬 ${state.message}</div>
+        ${state.isMyTurn ? '<div style="color:#f0c040;margin-top:4px">⚠️ 轮到你行动！</div>' : ''}
+        <div style="font-size:11px;color:#888;margin-top:4px">
+            ${state.players.map(p => `${p.name}(${p.chips})${p.isFolded?'弃':''}${p.isAllIn?'AllIn':''}${p.isDealer?'D':''}`).join(' | ')}
+        </div>
+    `;
+
+    // 行动按钮
+    const div = document.getElementById('actions');
+    if (state.isMyTurn) {
+        div.classList.remove('hidden');
+        div.querySelectorAll('button').forEach(b => {
+            const act = b.textContent;
+            if (act === '弃牌') b.classList.toggle('hidden', !state.availableActions.includes('fold'));
+            if (act === '过牌') b.classList.toggle('hidden', !state.availableActions.includes('check'));
+            if (act === '跟注') b.classList.toggle('hidden', !state.availableActions.includes('call'));
+            if (act === '+30%') b.classList.toggle('hidden', !state.availableActions.includes('raise_30'));
+            if (act === '+50%') b.classList.toggle('hidden', !state.availableActions.includes('raise_50'));
+            if (act === 'All-in') b.classList.toggle('hidden', !state.availableActions.includes('allin'));
+            if (act === '下一局') b.classList.toggle('hidden', state.phase !== 'hand_over');
+        });
+    } else {
+        div.classList.add('hidden');
+    }
+});
+
+socket.on('game_over', (results) => {
+    log('游戏结束！', 'warn');
+    document.getElementById('state').innerHTML += '<div style="color:#f0c040">🏆 游戏结束</div>';
+});
+
+socket.on('error', (err) => log('错误: ' + err.message, 'warn'));
+
+// ===== 操作 =====
+function createRoom() {
+    const name = document.getElementById('nickInput').value || '玩家';
+    socket.emit('create_room', { nickname: name }, (res) => {
+        if (res.error) return log('创建失败: ' + res.error, 'warn');
+        myId = res.playerId;
+        log('创建房间: ' + res.roomCode, 'good');
+    });
+}
+
+function joinRoom() {
+    const name = document.getElementById('nickInput').value || '玩家';
+    const code = document.getElementById('codeInput').value.toUpperCase();
+    if (!code) return log('请输入房间码', 'warn');
+    socket.emit('join_room', { roomCode: code, nickname: name }, (res) => {
+        if (res.error) return log('加入失败: ' + res.error, 'warn');
+        myId = res.playerId;
+        log('加入成功!', 'good');
+    });
+}
+
+function startGame() {
+    socket.emit('start_game', {}, (res) => {
+        if (res.error) return log('开始失败: ' + res.error, 'warn');
+        log('游戏开始!', 'good');
+    });
+}
+
+function act(action, multiplier) {
+    if (action === 'next') {
+        socket.emit('next_hand');
+        return;
+    }
+    socket.emit('player_action', { action, multiplier });
+    log('发送: ' + action + (multiplier ? ' +' + Math.round((multiplier-1)*100) + '%' : ''));
+}
+</script>
+</body>
+</html>
