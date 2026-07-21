@@ -56,7 +56,7 @@ class PokerGame {
         this.winners = [];
         this.eliminatedPlayers = [];
         this.gameMode = config.gameMode || 'training';
-        this.turnTimeout = (config.turnTimeout || 30) * 1000;
+        this.turnTimeout = (config.turnTimeout || 60) * 1000;
 
         // 广播回调：由 game_manager 设置
         this.onBroadcast = null;        // (playerId, state) => void

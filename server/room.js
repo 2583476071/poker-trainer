@@ -16,7 +16,7 @@ class Room {
             smallBlind: 2,
             bigBlind: 4,
             gameMode: 'training',       // 'training' | 'competitive'
-            turnTimeout: 30,            // 人类回合超时秒数
+            turnTimeout: 60,            // 人类回合超时秒数
         };
     }
 
