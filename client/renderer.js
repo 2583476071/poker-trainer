@@ -180,8 +180,8 @@ const Renderer = {
     },
 
     _updateButtons(state) {
-        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise30', 'btnRaise50',
-                     'btnRaiseMax', 'btnAllIn', 'btnNext', 'raiseSlider', 'sliderLabel'];
+        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise100', 'btnRaise150',
+                     'btnRaise200', 'btnAllIn', 'btnNext'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
@@ -200,21 +200,11 @@ const Renderer = {
         if (actions.includes('call')) {
             const btn = document.getElementById('btnCall');
             btn.classList.remove('hidden');
-            const me = state.players.find(p => p.id === state.myPlayerId);
-            // 计算跟注金额：当前最高下注 - 我已下注
-            const myBet = me ? me.totalBetThisHand : 0;
-            // 简化：用小盲大盲估算
             btn.textContent = '跟注';
         }
-        if (actions.includes('raise_30')) document.getElementById('btnRaise30').classList.remove('hidden');
-        if (actions.includes('raise_50')) document.getElementById('btnRaise50').classList.remove('hidden');
-        if (actions.includes('raise_custom')) {
-            document.getElementById('btnRaiseMax').classList.remove('hidden');
-            document.getElementById('raiseSlider').classList.remove('hidden');
-            document.getElementById('sliderLabel').classList.remove('hidden');
-            const slider = document.getElementById('raiseSlider');
-            document.getElementById('sliderLabel').textContent = '+' + slider.value + '%';
-        }
+        if (actions.includes('raise_100')) document.getElementById('btnRaise100').classList.remove('hidden');
+        if (actions.includes('raise_150')) document.getElementById('btnRaise150').classList.remove('hidden');
+        if (actions.includes('raise_200')) document.getElementById('btnRaise200').classList.remove('hidden');
         if (actions.includes('allin')) document.getElementById('btnAllIn').classList.remove('hidden');
     },
 

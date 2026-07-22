@@ -86,7 +86,7 @@
         </div>
         <div id="communityCards"></div>
         <div id="potDisplay">底池: 0</div>
-        <div id="blindDisplay">2/4</div>
+        <div id="blindDisplay">100/200</div>
         <div id="seatsContainer"></div>
     </div>
 
@@ -95,18 +95,16 @@
         <div id="yourInfo">
             <div id="yourHand"></div>
             <div id="handHint"></div>
-            <div id="yourChips">积分: 500</div>
+            <div id="yourChips">积分: 20000</div>
             <div id="yourBet"></div>
         </div>
         <div id="actionButtons">
             <button class="btn-fold" id="btnFold">弃牌</button>
             <button class="btn-check" id="btnCheck">过牌</button>
             <button class="btn-call" id="btnCall">跟注</button>
-            <button class="btn-raise" id="btnRaise30">+30%</button>
-            <button class="btn-raise" id="btnRaise50">+50%</button>
-            <button class="btn-raise" id="btnRaiseMax">+200%</button>
-            <input type="range" id="raiseSlider" min="10" max="200" value="50" step="5">
-            <span id="sliderLabel">+50%</span>
+            <button class="btn-raise" id="btnRaise100">+100%</button>
+            <button class="btn-raise" id="btnRaise150">+150%</button>
+            <button class="btn-raise" id="btnRaise200">+200%</button>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
         </div>
@@ -176,15 +174,9 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('btnFold').addEventListener('click', () => Network.sendAction('fold'));
 document.getElementById('btnCheck').addEventListener('click', () => Network.sendAction('check'));
 document.getElementById('btnCall').addEventListener('click', () => Network.sendAction('call'));
-document.getElementById('btnRaise30').addEventListener('click', () => Network.sendAction('raise', 1.3));
-document.getElementById('btnRaise50').addEventListener('click', () => Network.sendAction('raise', 1.5));
-document.getElementById('btnRaiseMax').addEventListener('click', () => {
-    const pct = parseInt(document.getElementById('raiseSlider').value);
-    Network.sendAction('raise', 1 + pct / 100);
-});
-document.getElementById('raiseSlider').addEventListener('input', function() {
-    document.getElementById('sliderLabel').textContent = '+' + this.value + '%';
-});
+document.getElementById('btnRaise100').addEventListener('click', () => Network.sendAction('raise', 2.0));
+document.getElementById('btnRaise150').addEventListener('click', () => Network.sendAction('raise', 2.5));
+document.getElementById('btnRaise200').addEventListener('click', () => Network.sendAction('raise', 3.0));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
 </script>

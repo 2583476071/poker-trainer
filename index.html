@@ -29,7 +29,7 @@
         <!-- 底池 -->
         <div id="potDisplay">底池: 0</div>
         <!-- 盲注级别 -->
-        <div id="blindDisplay">2/4</div>
+        <div id="blindDisplay">100/200</div>
         <!-- 玩家座位 -->
         <div id="seatsContainer"></div>
     </div>
@@ -40,7 +40,7 @@
         <div id="yourInfo">
             <div id="yourHand"></div>
             <div id="handHint"></div>
-            <div id="yourChips">积分: 500</div>
+            <div id="yourChips">积分: 20000</div>
             <div id="yourBet"></div>
         </div>
 
@@ -49,11 +49,9 @@
             <button class="btn-fold" id="btnFold">弃牌</button>
             <button class="btn-check" id="btnCheck">过牌</button>
             <button class="btn-call" id="btnCall">跟注</button>
-            <button class="btn-raise" id="btnRaise30">+30%</button>
-            <button class="btn-raise" id="btnRaise50">+50%</button>
-            <button class="btn-raise" id="btnRaiseMax">+200%</button>
-            <input type="range" id="raiseSlider" min="10" max="200" value="50" step="5">
-            <span id="sliderLabel">+50%</span>
+            <button class="btn-raise" id="btnRaise100">+100%</button>
+            <button class="btn-raise" id="btnRaise150">+150%</button>
+            <button class="btn-raise" id="btnRaise200">+200%</button>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
         </div>
@@ -324,19 +322,14 @@ function updateButtons(state) {
         fold: document.getElementById('btnFold'),
         check: document.getElementById('btnCheck'),
         call: document.getElementById('btnCall'),
-        raise30: document.getElementById('btnRaise30'),
-        raise50: document.getElementById('btnRaise50'),
-        raiseMax: document.getElementById('btnRaiseMax'),
+        raise100: document.getElementById('btnRaise100'),
+        raise150: document.getElementById('btnRaise150'),
+        raise200: document.getElementById('btnRaise200'),
         allIn: document.getElementById('btnAllIn'),
         next: document.getElementById('btnNext'),
     };
-    const slider = document.getElementById('raiseSlider');
-    const sliderLabel = document.getElementById('sliderLabel');
 
-    // 全部隐藏
     Object.values(btns).forEach(b => b.classList.add('hidden'));
-    slider.classList.add('hidden');
-    sliderLabel.classList.add('hidden');
 
     if (state.isGameOver) return;
 
@@ -354,14 +347,9 @@ function updateButtons(state) {
             const toCall = game.currentBetLevel - game.players[0].currentBet;
             btns.call.textContent = '跟注 ' + toCall;
         }
-        if (actions.includes('raise_30')) btns.raise30.classList.remove('hidden');
-        if (actions.includes('raise_50')) btns.raise50.classList.remove('hidden');
-        if (actions.includes('raise_custom')) {
-            btns.raiseMax.classList.remove('hidden');
-            slider.classList.remove('hidden');
-            sliderLabel.classList.remove('hidden');
-            sliderLabel.textContent = '+' + slider.value + '%';
-        }
+        if (actions.includes('raise_100')) btns.raise100.classList.remove('hidden');
+        if (actions.includes('raise_150')) btns.raise150.classList.remove('hidden');
+        if (actions.includes('raise_200')) btns.raise200.classList.remove('hidden');
         if (actions.includes('allin')) btns.allIn.classList.remove('hidden');
     }
 }
@@ -426,15 +414,9 @@ function updateResultOverlay(state) {
 document.getElementById('btnFold').addEventListener('click', () => game.humanAction('fold'));
 document.getElementById('btnCheck').addEventListener('click', () => game.humanAction('check'));
 document.getElementById('btnCall').addEventListener('click', () => game.humanAction('call'));
-document.getElementById('btnRaise30').addEventListener('click', () => game.humanAction('raise', 1.3));
-document.getElementById('btnRaise50').addEventListener('click', () => game.humanAction('raise', 1.5));
-document.getElementById('btnRaiseMax').addEventListener('click', () => {
-    const pct = parseInt(document.getElementById('raiseSlider').value);
-    game.humanAction('raise', 1 + pct / 100);
-});
-document.getElementById('raiseSlider').addEventListener('input', function() {
-    document.getElementById('sliderLabel').textContent = '+' + this.value + '%';
-});
+document.getElementById('btnRaise100').addEventListener('click', () => game.humanAction('raise', 2.0));
+document.getElementById('btnRaise150').addEventListener('click', () => game.humanAction('raise', 2.5));
+document.getElementById('btnRaise200').addEventListener('click', () => game.humanAction('raise', 3.0));
 document.getElementById('btnAllIn').addEventListener('click', () => game.humanAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => game.nextHand());
 document.getElementById('btnNextHand').addEventListener('click', () => {

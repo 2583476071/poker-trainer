@@ -27,24 +27,29 @@ class PokerGame {
         this.players = [];
         this.communityCards = [];
         this.deck = [];
-        this.phase = 'idle';        // idle | preflop | flop | turn | river | showdown | hand_over
+        this.phase = 'idle';
         this.dealerIndex = -1;
         this.currentPlayerIndex = -1;
-        this.bigBlindAmount = BIG_BLIND;
-        this.smallBlindAmount = SMALL_BLIND;
-        this.currentBetLevel = 0;   // 当前轮最高下注额
-        this.minRaise = BIG_BLIND;
+        this.blindLevel = 0;            // 当前盲注级别索引（BLIND_LEVELS）
+        this.bigBlindAmount = BLIND_LEVELS[0].big;
+        this.smallBlindAmount = BLIND_LEVELS[0].small;
+        this.currentBetLevel = 0;
+        this.minRaise = BLIND_LEVELS[0].big;
         this.preflopRaiserIndex = -1;
-        this.raiseCountThisRound = 0;  // 本轮加注次数（防止无限再加注）
+        this.raiseCountThisRound = 0;
         this.handNumber = 0;
+        this.handsAtCurrentBlind = 0;   // 当前盲注级别已打手数
+        this.blindLevelStartTime = Date.now(); // 当前盲注级别开始时间
+        this.blindIncreased = false;
         this.message = '';
-        this.winners = [];          // showdown 结果
-        this.onStateChange = null;  // UI 回调
-        this.pendingHumanAction = null; // Promise resolve for human input
+        this.winners = [];
+        this.onStateChange = null;
+        this.pendingHumanAction = null;
         this.eliminatedPlayers = [];
-        this.account = null;           // { nickname, stats }
-        this.humanStats = null;        // 本局追踪: { folds, raises, calls, startingChips }
-        this.gameMode = 'training';    // 'training' | 'competitive'
+        this.account = null;
+        this.humanStats = null;
+        this.gameMode = 'training';
+        this._wasShowdown = false;
     }
 
     /** 初始化游戏：1 真人 + 8 AI，mode='training'|'competitive' */
@@ -80,16 +85,20 @@ class PokerGame {
     /** 开始一手新牌 */
     startNewHand() {
         this.handNumber++;
+        this.handsAtCurrentBlind++;
 
         // 检查是否有玩家被淘汰（筹码为0）
         const broke = this.players.filter(p => p.chips <= 0 && !this.eliminatedPlayers.includes(p.id));
+        const hadEliminated = this.eliminatedPlayers.length;
         for (const p of broke) {
             this.eliminatedPlayers.push(p.id);
             p.chips = 0;
         }
 
-        // 更新盲注级别（掉人后翻倍）
-        this.updateBlinds();
+        // 更新盲注级别
+        // 从第3人开始，每次掉人强制升盲；否则按20手/10分钟自动升
+        const willForceAdvance = hadEliminated >= 2 && broke.length > 0;
+        this.updateBlinds(willForceAdvance);
 
         // 重置状态
         this.communityCards = [];
@@ -1085,15 +1094,11 @@ class PokerGame {
         if (isHumanTurn) {
             const toCall = this.currentBetLevel - human.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_30', 'raise_50', 'raise_custom', 'allin'];
+                availableActions = ['fold', 'check', 'raise_100', 'raise_150', 'raise_200', 'allin'];
             } else if (toCall >= human.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
-                availableActions = ['fold', 'call'];
-                availableActions.push('raise_30');
-                availableActions.push('raise_50');
-                availableActions.push('raise_custom');
-                availableActions.push('allin');
+                availableActions = ['fold', 'call', 'raise_100', 'raise_150', 'raise_200', 'allin'];
             }
         }
 
@@ -1171,18 +1176,32 @@ class PokerGame {
         this.startNewHand();
     }
 
-    /** 根据淘汰人数更新盲注级别 */
-    updateBlinds() {
-        const eliminated = this.eliminatedPlayers.length;
-        // 前2人出局不翻倍，第3人开始每次翻倍
-        const levels = Math.max(0, eliminated - 2);
-        const multiplier = Math.pow(2, levels);
+    /** 更新盲注级别（20手/10分钟/掉人触发） */
+    updateBlinds(forceAdvance) {
         const oldBig = this.bigBlindAmount;
-        this.smallBlindAmount = SMALL_BLIND * multiplier;
-        this.bigBlindAmount  = BIG_BLIND * multiplier;
-        if (this.bigBlindAmount !== oldBig && this.handNumber > 1) {
-            this.blindIncreased = true;
+        let shouldAdvance = forceAdvance || false;
+
+        // 每20手牌升盲
+        if (this.handsAtCurrentBlind >= BLINDS_UP_HANDS) {
+            shouldAdvance = true;
         }
+
+        // 每10分钟升盲（取更早者）
+        const elapsed = Date.now() - this.blindLevelStartTime;
+        if (elapsed >= BLINDS_UP_MINUTES * 60 * 1000) {
+            shouldAdvance = true;
+        }
+
+        if (shouldAdvance && this.blindLevel < BLIND_LEVELS.length - 1) {
+            this.blindLevel++;
+            this.handsAtCurrentBlind = 0;
+            this.blindLevelStartTime = Date.now();
+            this.blindIncreased = (this.handNumber > 1);
+        }
+
+        this.smallBlindAmount = BLIND_LEVELS[this.blindLevel].small;
+        this.bigBlindAmount  = BLIND_LEVELS[this.blindLevel].big;
+        this.minRaise = this.bigBlindAmount;
     }
 
     // ========== 战绩追踪 & 本地存档 ==========

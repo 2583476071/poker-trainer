@@ -15,9 +15,23 @@ const HAND_NAMES = [
 ];
 
 const PHASES = ['preflop','flop','turn','river','showdown','hand_over'];
-const SMALL_BLIND = 2;
-const BIG_BLIND = 4;
-const STARTING_CHIPS = 500;
+const SMALL_BLIND = 100;
+const BIG_BLIND = 200;
+const STARTING_CHIPS = 20000;
+
+// 盲注级别表: { small, big }
+const BLIND_LEVELS = [
+    { small: 100,  big: 200 },
+    { small: 200,  big: 400 },
+    { small: 300,  big: 600 },
+    { small: 400,  big: 800 },
+    { small: 500,  big: 1000 },
+    { small: 1000, big: 2000 },
+    { small: 2000, big: 4000 },
+    { small: 5000, big: 10000 },
+];
+const BLINDS_UP_HANDS = 20;      // 每20手牌升盲
+const BLINDS_UP_MINUTES = 10;    // 每10分钟升盲
 
 // AI 性格类型
 const AI_PERSONALITIES = [
@@ -35,5 +49,5 @@ const AI_PERSONALITIES = [
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { RANKS, RANK_VALUES, SUITS, SUIT_SYMBOLS, SUIT_COLORS,
                        HAND_NAMES, PHASES, SMALL_BLIND, BIG_BLIND, STARTING_CHIPS,
-                       AI_PERSONALITIES };
+                       AI_PERSONALITIES, BLIND_LEVELS, BLINDS_UP_HANDS, BLINDS_UP_MINUTES };
 }

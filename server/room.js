@@ -11,12 +11,12 @@ class Room {
         this.game = null;               // PokerGame 实例（null 直到游戏开始）
         this.createdAt = Date.now();
         this.config = {
-            aiCount: 8,                 // AI 数量（0-8，填满剩余座位）
-            startingChips: 500,
-            smallBlind: 2,
-            bigBlind: 4,
-            gameMode: 'training',       // 'training' | 'competitive'
-            turnTimeout: 60,            // 人类回合超时秒数
+            aiCount: 8,
+            startingChips: 20000,
+            smallBlind: 100,
+            bigBlind: 200,
+            gameMode: 'training',
+            turnTimeout: 60,
         };
     }
 

@@ -45,13 +45,17 @@ class PokerGame {
         this.phase = 'idle';
         this.dealerIndex = -1;
         this.currentPlayerIndex = -1;
-        this.bigBlindAmount = config.bigBlind || BIG_BLIND;
-        this.smallBlindAmount = config.smallBlind || SMALL_BLIND;
+        this.blindLevel = 0;
+        this.bigBlindAmount = config.bigBlind || BLIND_LEVELS[0].big;
+        this.smallBlindAmount = config.smallBlind || BLIND_LEVELS[0].small;
         this.currentBetLevel = 0;
-        this.minRaise = config.bigBlind || BIG_BLIND;
+        this.minRaise = config.bigBlind || BLIND_LEVELS[0].big;
         this.preflopRaiserIndex = -1;
         this.raiseCountThisRound = 0;
         this.handNumber = 0;
+        this.handsAtCurrentBlind = 0;
+        this.blindLevelStartTime = Date.now();
+        this.blindIncreased = false;
         this.message = '';
         this.winners = [];
         this.eliminatedPlayers = [];
@@ -100,15 +104,18 @@ class PokerGame {
 
     startNewHand() {
         this.handNumber++;
+        this.handsAtCurrentBlind++;
 
         // 检查淘汰
         const broke = this.players.filter(p => p.chips <= 0 && !this.eliminatedPlayers.includes(p.id));
+        const hadEliminated = this.eliminatedPlayers.length;
         for (const p of broke) {
             this.eliminatedPlayers.push(p.id);
             p.chips = 0;
         }
 
-        this.updateBlinds();
+        const willForceAdvance = hadEliminated >= 2 && broke.length > 0;
+        this.updateBlinds(willForceAdvance);
 
         // 重置状态
         this.communityCards = [];
@@ -881,17 +888,29 @@ class PokerGame {
         this.startNewHand();
     }
 
-    /** 更新盲注级别 */
-    updateBlinds() {
-        const eliminated = this.eliminatedPlayers.length;
-        const levels = Math.max(0, eliminated - 2);
-        const multiplier = Math.pow(2, levels);
-        const oldBig = this.bigBlindAmount;
-        this.smallBlindAmount = SMALL_BLIND * multiplier;
-        this.bigBlindAmount = BIG_BLIND * multiplier;
-        if (this.bigBlindAmount !== oldBig && this.handNumber > 1) {
-            this.blindIncreased = true;
+    /** 更新盲注级别（20手/10分钟/掉人触发） */
+    updateBlinds(forceAdvance) {
+        let shouldAdvance = forceAdvance || false;
+
+        if (this.handsAtCurrentBlind >= BLINDS_UP_HANDS) {
+            shouldAdvance = true;
         }
+
+        const elapsed = Date.now() - this.blindLevelStartTime;
+        if (elapsed >= BLINDS_UP_MINUTES * 60 * 1000) {
+            shouldAdvance = true;
+        }
+
+        if (shouldAdvance && this.blindLevel < BLIND_LEVELS.length - 1) {
+            this.blindLevel++;
+            this.handsAtCurrentBlind = 0;
+            this.blindLevelStartTime = Date.now();
+            this.blindIncreased = (this.handNumber > 1);
+        }
+
+        this.smallBlindAmount = BLIND_LEVELS[this.blindLevel].small;
+        this.bigBlindAmount  = BLIND_LEVELS[this.blindLevel].big;
+        this.minRaise = this.bigBlindAmount;
     }
 
     // ==================== 状态广播 ====================
@@ -919,11 +938,11 @@ class PokerGame {
         if (isMyTurn) {
             const toCall = this.currentBetLevel - viewer.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_30', 'raise_50', 'raise_custom', 'allin'];
+                availableActions = ['fold', 'check', 'raise_100', 'raise_150', 'raise_200', 'allin'];
             } else if (toCall >= viewer.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
-                availableActions = ['fold', 'call', 'raise_30', 'raise_50', 'raise_custom', 'allin'];
+                availableActions = ['fold', 'call', 'raise_100', 'raise_150', 'raise_200', 'allin'];
             }
         }
 
