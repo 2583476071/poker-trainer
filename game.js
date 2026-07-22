@@ -37,11 +37,13 @@ class PokerGame {
         this.minRaise = BLIND_LEVELS[0].big;
         this.preflopRaiserIndex = -1;
         this.raiseCountThisRound = 0;
+        this.currentRoundRaiserId = -1;  // 本轮第一个加注者
         this.handNumber = 0;
-        this.handsAtCurrentBlind = 0;   // 当前盲注级别已打手数
-        this.blindLevelStartTime = Date.now(); // 当前盲注级别开始时间
+        this.handsAtCurrentBlind = 0;
+        this.blindLevelStartTime = Date.now();
         this.blindIncreased = false;
         this.message = '';
+        this.lastAction = null;          // { playerName, action, amount }
         this.winners = [];
         this.onStateChange = null;
         this.pendingHumanAction = null;
@@ -107,8 +109,10 @@ class PokerGame {
         this.minRaise = this.bigBlindAmount;
         this.preflopRaiserIndex = -1;
         this.raiseCountThisRound = 0;
+        this.currentRoundRaiserId = -1;
         this.winners = [];
         this.message = '';
+        this.lastAction = null;
         this._wasShowdown = false;
         this.pendingHumanAction = null;
 
@@ -301,10 +305,12 @@ class PokerGame {
     doFold(p) {
         p.isFolded = true;
         this.message = `${p.name} 弃牌`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'fold', amount: 0 };
     }
 
     doCheck(p) {
         this.message = `${p.name} 过牌`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'check', amount: 0 };
     }
 
     doCall(p) {
@@ -315,6 +321,7 @@ class PokerGame {
         p.totalBetThisHand += callAmount;
         if (p.chips <= 0) p.isAllIn = true;
         this.message = `${p.name} 跟注 ${callAmount}`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
     doRaise(p, multiplier) {
@@ -347,6 +354,12 @@ class PokerGame {
 
         const pct = Math.round((multiplier - 1) * 100);
         this.message = `${p.name} 加注到 ${p.currentBet}（+${pct}%）`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
+
+        // 标记本轮第一个加注者
+        if (this.currentRoundRaiserId === -1) {
+            this.currentRoundRaiserId = p.id;
+        }
     }
 
     doAllIn(p) {
@@ -367,6 +380,11 @@ class PokerGame {
             }
         }
         this.message = `${p.name} All-in! (${amount})`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'allin', amount };
+
+        if (this.currentRoundRaiserId === -1) {
+            this.currentRoundRaiserId = p.id;
+        }
     }
 
     /** 本轮下注是否结束 */
@@ -396,6 +414,7 @@ class PokerGame {
         this.currentBetLevel = 0;
         this.minRaise = this.bigBlindAmount;
         this.raiseCountThisRound = 0;
+        this.currentRoundRaiserId = -1;
 
         // 如果只剩一个活跃玩家 → 发完公共牌再结束
         if (this.countActivePlayers() === 1) {
@@ -1143,6 +1162,8 @@ class PokerGame {
                 handCards: w.player.handCards,
                 pot: w.pot,
             })),
+            lastAction: this.lastAction,
+            currentRoundRaiserId: this.currentRoundRaiserId,
             isGameOver: this.phase === 'game_over',
             humanChips: this.players[0].chips,
             humanHand: this.players[0].handCards,

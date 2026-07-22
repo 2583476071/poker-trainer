@@ -52,11 +52,13 @@ class PokerGame {
         this.minRaise = config.bigBlind || BLIND_LEVELS[0].big;
         this.preflopRaiserIndex = -1;
         this.raiseCountThisRound = 0;
+        this.currentRoundRaiserId = -1;
         this.handNumber = 0;
         this.handsAtCurrentBlind = 0;
         this.blindLevelStartTime = Date.now();
         this.blindIncreased = false;
         this.message = '';
+        this.lastAction = null;
         this.winners = [];
         this.eliminatedPlayers = [];
         this.gameMode = config.gameMode || 'training';
@@ -124,8 +126,10 @@ class PokerGame {
         this.minRaise = this.bigBlindAmount;
         this.preflopRaiserIndex = -1;
         this.raiseCountThisRound = 0;
+        this.currentRoundRaiserId = -1;
         this.winners = [];
         this.message = '';
+        this.lastAction = null;
         this._wasShowdown = false;
         this._pendingHumanResolve = null;
         if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
@@ -289,10 +293,12 @@ class PokerGame {
     doFold(p) {
         p.isFolded = true;
         this.message = `${p.name} 弃牌`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'fold', amount: 0 };
     }
 
     doCheck(p) {
         this.message = `${p.name} 过牌`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'check', amount: 0 };
     }
 
     doCall(p) {
@@ -303,6 +309,7 @@ class PokerGame {
         p.totalBetThisHand += callAmount;
         if (p.chips <= 0) p.isAllIn = true;
         this.message = `${p.name} 跟注 ${callAmount}`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
     doRaise(p, multiplier) {
@@ -327,6 +334,8 @@ class PokerGame {
 
         const pct = Math.round(((multiplier || 1.3) - 1) * 100);
         this.message = `${p.name} 加注到 ${p.currentBet}（+${pct}%）`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
+        if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
     }
 
     doAllIn(p) {
@@ -346,6 +355,8 @@ class PokerGame {
             }
         }
         this.message = `${p.name} All-in! (${amount})`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'allin', amount };
+        if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
     }
 
     isBettingRoundOver() {
@@ -368,6 +379,7 @@ class PokerGame {
         this.currentBetLevel = 0;
         this.minRaise = this.bigBlindAmount;
         this.raiseCountThisRound = 0;
+        this.currentRoundRaiserId = -1;
 
         if (this.countActivePlayers() === 1) {
             const winner = this.players.find(p => this.isActive(p));
@@ -995,6 +1007,8 @@ class PokerGame {
                 handCards: w.player.handCards,
                 pot: w.pot,
             })),
+            lastAction: this.lastAction,
+            currentRoundRaiserId: this.currentRoundRaiserId,
             isGameOver: this.phase === 'game_over',
             smallBlind: this.smallBlindAmount,
             bigBlind: this.bigBlindAmount,

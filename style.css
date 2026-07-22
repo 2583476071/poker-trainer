@@ -965,3 +965,154 @@ body {
 
     #statsPanel { font-size: 10px; }
 }
+
+/* ================================================================
+   行动日志
+   ================================================================ */
+#actionLog {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(10,10,26,0.95); border-top: 1px solid #333;
+    max-height: 120px; overflow-y: auto; padding: 6px 16px;
+    font-family: monospace; font-size: 13px; line-height: 1.6;
+}
+#actionLog .entry { padding: 1px 0; border-bottom: 1px solid #1a1a2e; }
+#actionLog .entry .player { font-weight: bold; color: #4fc3f7; }
+#actionLog .entry .action-fold { color: #e74c3c; }
+#actionLog .entry .action-call { color: #aaa; }
+#actionLog .entry .action-raise { color: #2ecc71; }
+#actionLog .entry .action-allin { color: #f0c040; }
+#actionLog .entry .action-check { color: #888; }
+#actionLog .entry .raiser-tag { color: #f0c040; font-size: 11px; }
+
+/* ================================================================
+   位置标记增强
+   ================================================================ */
+.badge-dealer, .badge-sb, .badge-bb {
+    display: inline-block; width: 20px; height: 20px; line-height: 20px;
+    text-align: center; border-radius: 50%; font-size: 10px; font-weight: bold;
+    margin-left: 2px; vertical-align: middle;
+}
+.badge-dealer { background: #f0c040; color: #000; }
+.badge-sb { background: #3498db; color: #fff; }
+.badge-bb { background: #e74c3c; color: #fff; }
+
+/* 加注者标记 */
+.badge-raiser {
+    display: inline-block; background: #f39c12; color: #000;
+    padding: 1px 4px; border-radius: 3px; font-size: 9px;
+    font-weight: bold; margin-left: 2px; vertical-align: middle;
+}
+
+/* ================================================================
+   摊牌结果面板
+   ================================================================ */
+#showdownPanel {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 200;
+    background: rgba(0,0,0,0.85); display: flex;
+    align-items: center; justify-content: center;
+}
+#showdownPanel.hidden { display: none; }
+#showdownPanel .sd-content {
+    background: #1a1a2e; border-radius: 16px; padding: 24px;
+    max-width: 700px; width: 95%; text-align: center;
+    animation: showdownIn 0.4s ease-out;
+}
+@keyframes showdownIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+#showdownPanel .sd-title {
+    font-size: 22px; color: #f0c040; margin-bottom: 6px;
+}
+#showdownPanel .sd-pubcards {
+    display: flex; justify-content: center; gap: 8px; margin: 10px 0;
+    flex-wrap: wrap;
+}
+#showdownPanel .sd-pubcards .card {
+    width: 44px; height: 64px; font-size: 14px;
+}
+#showdownPanel .sd-players {
+    display: flex; gap: 12px; justify-content: center;
+    flex-wrap: wrap; margin: 16px 0;
+}
+.sd-player-card {
+    background: #16213e; border-radius: 10px; padding: 12px 14px;
+    min-width: 130px; text-align: center;
+    border: 2px solid #333; transition: all 0.3s;
+}
+.sd-player-card.winner {
+    border-color: #f0c040;
+    box-shadow: 0 0 16px rgba(240,192,64,0.3);
+    animation: winnerPulse 0.6s ease-in-out;
+}
+@keyframes winnerPulse {
+    0%, 100% { box-shadow: 0 0 16px rgba(240,192,64,0.3); }
+    50% { box-shadow: 0 0 32px rgba(240,192,64,0.6); }
+}
+.sd-player-card .sd-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+.sd-player-card .sd-cards { font-size: 18px; letter-spacing: 2px; margin: 4px 0; }
+.sd-player-card .sd-handname { font-size: 13px; color: #aaa; margin: 2px 0; }
+.sd-player-card.winner .sd-handname { color: #f0c040; font-size: 15px; font-weight: bold; }
+.sd-player-card .sd-result { font-size: 14px; margin-top: 4px; }
+.sd-player-card .sd-win { color: #2ecc71; font-weight: bold; }
+.sd-player-card .sd-lose { color: #e74c3c; }
+.sd-player-card .sd-trophy { font-size: 24px; }
+#showdownPanel .sd-pot { font-size: 16px; color: #aaa; margin-top: 8px; }
+#showdownPanel .sd-next-btn {
+    margin-top: 16px; padding: 12px 36px; font-size: 16px;
+    background: #2d6a4f; color: #eee; border: none;
+    border-radius: 8px; cursor: pointer;
+}
+#showdownPanel .sd-next-btn:hover { background: #40916c; }
+
+/* ================================================================
+   手牌提示增强
+   ================================================================ */
+#handHint {
+    font-size: 15px !important; font-weight: bold;
+    color: #f0c040 !important; padding: 4px 0;
+    min-height: 22px;
+}
+
+/* ================================================================
+   牌桌背景增强
+   ================================================================ */
+#tableArea {
+    background: radial-gradient(ellipse at center, #1a5c2a 0%, #0d3517 60%, #071f0d 100%);
+    border-radius: 50%; border: 6px solid #2d1810;
+    box-shadow: 0 0 60px rgba(0,0,0,0.5), inset 0 0 40px rgba(0,0,0,0.3);
+}
+
+/* ================================================================
+   跟注按钮显示金额
+   ================================================================ */
+#btnCall { min-width: 100px; }
+
+/* ================================================================
+   玩家行动高亮动画
+   ================================================================ */
+.player-seat .player-info.current-turn {
+    animation: turnGlow 0.8s ease-in-out infinite alternate;
+}
+@keyframes turnGlow {
+    from { box-shadow: 0 0 8px rgba(79,195,247,0.3); }
+    to   { box-shadow: 0 0 20px rgba(79,195,247,0.7); }
+}
+
+/* ================================================================
+   倒计时进度条
+   ================================================================ */
+#turnTimer {
+    height: 3px; background: #f0c040;
+    transition: width 0.3s linear;
+    position: fixed; top: 0; left: 0; z-index: 300;
+}
+#turnTimer.warning { background: #e74c3c; }
+
+/* 响应式微调 */
+@media (max-width: 768px) {
+    #actionLog { max-height: 80px; font-size: 11px; }
+    #showdownPanel .sd-players { gap: 6px; }
+    .sd-player-card { min-width: 100px; padding: 8px 10px; }
+    .sd-player-card .sd-cards { font-size: 14px; }
+}

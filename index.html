@@ -95,6 +95,20 @@
     </div>
 </div>
 
+<!-- 摊牌面板 -->
+<div id="showdownPanel" class="hidden">
+    <div class="sd-content">
+        <div class="sd-title" id="sdTitle">🃏 摊牌</div>
+        <div class="sd-pubcards" id="sdPubcards"></div>
+        <div class="sd-players" id="sdPlayers"></div>
+        <div class="sd-pot" id="sdPot"></div>
+        <button class="sd-next-btn" id="sdNextBtn">下一局 ▶</button>
+    </div>
+</div>
+
+<!-- 行动日志 -->
+<div id="actionLog"></div>
+
 <!-- shared 纯函数模块（按依赖顺序加载） -->
 <script src="shared/constants.js"></script>
 <script src="shared/deck.js"></script>
@@ -194,19 +208,25 @@ function render(state) {
         if (p.isDealer) nameHTML += ' <span class="badge-dealer">D</span>';
         if (p.isSmallBlind) nameHTML += ' <span class="badge-sb">SB</span>';
         if (p.isBigBlind) nameHTML += ' <span class="badge-bb">BB</span>';
+        if (state.currentRoundRaiserId === p.id) nameHTML += ' <span class="badge-raiser">R</span>';
         if (!p.isHuman && p.aiType && state.showAiTypes) nameHTML += ` <span class="badge-ai">${p.aiType}</span>`;
         nameEl.innerHTML = nameHTML;
         if (p.isHuman) nameEl.classList.add('human');
         else nameEl.classList.remove('human');
 
-        // 筹码
-        chipEl.textContent = `积分: ${p.chips}`;
+        // 筹码 + BB数
+        const bbCount = Math.round(p.chips / state.bigBlind);
+        chipEl.textContent = `${p.chips}（${bbCount}BB）`;
 
-        // 当前下注
+        // 当前下注（彩色）
         if (p.totalBetThisHand > 0) {
-            betEl.textContent = `下注: ${p.totalBetThisHand}`;
+            betEl.textContent = `💵 ${p.totalBetThisHand}`;
+            betEl.style.color = '#2ecc71';
+            betEl.style.fontWeight = 'bold';
         } else {
             betEl.textContent = '';
+            betEl.style.color = '';
+            betEl.style.fontWeight = '';
         }
 
         // 手牌
@@ -313,6 +333,12 @@ function render(state) {
     // 行动按钮
     updateButtons(state);
 
+    // 行动日志
+    updateActionLog(state);
+
+    // 摊牌面板
+    updateShowdownPanel(state);
+
     // 结果弹窗
     updateResultOverlay(state);
 }
@@ -410,6 +436,83 @@ function updateResultOverlay(state) {
     };
 }
 
+// ===== 行动日志 =====
+const actionLogEl = document.getElementById('actionLog');
+const logEntries = [];
+function updateActionLog(state) {
+    if (!state.lastAction) return;
+    const a = state.lastAction;
+    // 去重（同一动作不重复记录）
+    const key = `${a.playerId}-${a.action}-${state.handNumber}-${state.phase}`;
+    if (logEntries.includes(key)) return;
+    logEntries.push(key);
+    if (logEntries.length > 50) logEntries.shift();
+
+    let cls = 'action-' + a.action;
+    let icon = { fold:'✗', check:'✓', call:'→', raise:'↑', allin:'⚡' }[a.action] || '';
+    let detail = a.amount > 0 ? ` ${a.amount}` : '';
+    actionLogEl.innerHTML += `<div class="entry"><span class="player">${a.playerName}</span> <span class="${cls}">${icon}${a.action === 'allin' ? 'All-in' : (a.action === 'raise' ? '加注' : (a.action === 'call' ? '跟注' : (a.action === 'fold' ? '弃牌' : '过牌')))}${detail}</span></div>`;
+    actionLogEl.scrollTop = actionLogEl.scrollHeight;
+}
+
+// ===== 摊牌面板 =====
+function updateShowdownPanel(state) {
+    const panel = document.getElementById('showdownPanel');
+    if (state.phase !== 'hand_over' || state.winners.length === 0) {
+        panel.classList.add('hidden');
+        return;
+    }
+    panel.classList.remove('hidden');
+
+    // 标题
+    document.getElementById('sdTitle').textContent = '🃏 摊牌结果';
+
+    // 公共牌
+    let pubHTML = '';
+    for (const c of state.communityCards) {
+        const suitSymbol = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
+        const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
+        pubHTML += `<div class="card ${isRed ? 'red' : 'black'}"><span class="rank">${c.rank}</span><span class="suit">${suitSymbol}</span></div>`;
+    }
+    document.getElementById('sdPubcards').innerHTML = pubHTML;
+
+    // 玩家卡片
+    const activePlayers = state.players.filter(p => !p.isEliminated && !p.isFolded);
+    // 按手牌强度排序
+    const ranked = activePlayers.map(p => {
+        const w = state.winners.find(w => w.playerId === p.id || w.name === p.name);
+        const handName = w && w.handName ? w.handName : '—';
+        const pot = w ? w.pot : 0;
+        return { ...p, handName, pot, isWinner: pot > 0 };
+    }).sort((a, b) => b.pot - a.pot);
+
+    document.getElementById('sdPlayers').innerHTML = ranked.map(p => `
+        <div class="sd-player-card ${p.isWinner ? 'winner' : ''}">
+            <div class="sd-name">${p.isWinner ? '🏆 ' : ''}${p.name}${p.isHuman ? ' 👤' : ''}</div>
+            <div class="sd-cards">${p.handCards.map(c => {
+                const s = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
+                const r = c.suit === 'hearts' || c.suit === 'diamonds' ? 'red' : '';
+                return `<span style="color:${r ? '#e74c3c' : '#2c3e50'}">${c.rank}${s}</span>`;
+            }).join(' ')}</div>
+            <div class="sd-handname">【${p.handName}】</div>
+            <div class="sd-result">
+                ${p.isWinner ? `<span class="sd-win">+${p.pot}</span>` : `<span class="sd-lose">—</span>`}
+            </div>
+        </div>
+    `).join('');
+
+    // 底池
+    document.getElementById('sdPot').textContent = `底池: ${state.pot}`;
+
+    // 下一局按钮
+    document.getElementById('sdNextBtn').onclick = () => {
+        panel.classList.add('hidden');
+        logEntries.length = 0;
+        actionLogEl.innerHTML = '';
+        game.nextHand();
+    };
+}
+
 // ===== 按钮事件 =====
 document.getElementById('btnFold').addEventListener('click', () => game.humanAction('fold'));
 document.getElementById('btnCheck').addEventListener('click', () => game.humanAction('check'));
@@ -418,7 +521,11 @@ document.getElementById('btnRaise100').addEventListener('click', () => game.huma
 document.getElementById('btnRaise150').addEventListener('click', () => game.humanAction('raise', 2.5));
 document.getElementById('btnRaise200').addEventListener('click', () => game.humanAction('raise', 3.0));
 document.getElementById('btnAllIn').addEventListener('click', () => game.humanAction('allin'));
-document.getElementById('btnNext').addEventListener('click', () => game.nextHand());
+document.getElementById('btnNext').addEventListener('click', () => {
+    logEntries.length = 0;
+    actionLogEl.innerHTML = '';
+    game.nextHand();
+});
 document.getElementById('btnNextHand').addEventListener('click', () => {
     document.getElementById('resultOverlay').classList.add('hidden');
     game.nextHand();

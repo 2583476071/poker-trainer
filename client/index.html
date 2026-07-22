@@ -111,6 +111,9 @@
     </div>
 </div>
 
+<!-- 回合倒计时条 -->
+<div id="turnTimer"></div>
+
 <!-- 结果弹窗 -->
 <div id="resultOverlay" class="hidden">
     <div id="resultBox">
@@ -119,6 +122,20 @@
         <button id="btnNextHand">下一局 ▶</button>
     </div>
 </div>
+
+<!-- 摊牌面板 -->
+<div id="showdownPanel" class="hidden">
+    <div class="sd-content">
+        <div class="sd-title" id="sdTitle">🃏 摊牌</div>
+        <div class="sd-pubcards" id="sdPubcards"></div>
+        <div class="sd-players" id="sdPlayers"></div>
+        <div class="sd-pot" id="sdPot"></div>
+        <button class="sd-next-btn" id="sdNextBtn">下一局 ▶</button>
+    </div>
+</div>
+
+<!-- 行动日志 -->
+<div id="actionLog"></div>
 
 <!-- 脚本加载 -->
 <script src="/socket.io/socket.io.js"></script>
@@ -134,6 +151,32 @@
 <script src="renderer.js"></script>
 
 <script>
+// ===== 倒计时 =====
+let turnTimerInterval = null;
+let turnSecondsLeft = 0;
+const timerBar = document.getElementById('turnTimer');
+
+function startTurnTimer(seconds) {
+    clearInterval(turnTimerInterval);
+    turnSecondsLeft = seconds || 60;
+    timerBar.style.width = '100%';
+    timerBar.classList.remove('warning');
+
+    turnTimerInterval = setInterval(() => {
+        turnSecondsLeft--;
+        const pct = Math.max(0, (turnSecondsLeft / 60) * 100);
+        timerBar.style.width = pct + '%';
+        if (turnSecondsLeft <= 10) timerBar.classList.add('warning');
+        if (turnSecondsLeft <= 0) clearInterval(turnTimerInterval);
+    }, 1000);
+}
+
+function stopTurnTimer() {
+    clearInterval(turnTimerInterval);
+    timerBar.style.width = '0%';
+    timerBar.classList.remove('warning');
+}
+
 // ===== 主入口 =====
 document.addEventListener('DOMContentLoaded', () => {
     Lobby.init();
@@ -148,11 +191,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // 游戏开始 → 隐藏大厅，显示牌桌
     Network.on('gameStarting', () => {
         Lobby.hide();
+        stopTurnTimer();
     });
 
     // 游戏状态更新 → 渲染牌桌
     Network.on('stateUpdate', (state) => {
         Renderer.render(state);
+        // 倒计时
+        if (state.isMyTurn && state.phase !== 'hand_over') {
+            startTurnTimer(60);
+        } else {
+            stopTurnTimer();
+        }
     });
 
     // 游戏结束
