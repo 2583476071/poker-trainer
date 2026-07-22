@@ -965,6 +965,7 @@ class PokerGame {
             pot: totalPot(this.players),
             phase: this.phase,
             message: this.message,
+            currentPlayerId: this.currentPlayerIndex >= 0 ? this.players[this.currentPlayerIndex].id : null,
             isMyTurn,
             availableActions,
             handNumber: this.handNumber,
