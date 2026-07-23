@@ -285,7 +285,7 @@ const Renderer = {
         for (const c of state.communityCards) {
             const s = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
             const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
-            pubHTML += `<div class="card ${isRed ? 'red' : 'black'}"><span class="rank">${c.rank}</span><span class="suit">${s}</span></div>`;
+            pubHTML += `<div class="sd-card ${isRed ? 'red' : 'black'}"><span class="sd-rank">${c.rank}</span><span class="sd-suit">${s}</span></div>`;
         }
         document.getElementById('sdPubcards').innerHTML = pubHTML;
 
@@ -300,8 +300,9 @@ const Renderer = {
                 <div class="sd-name">${p.isWinner ? '🏆 ' : ''}${p.name}${p.id === state.myPlayerId ? ' 👤' : ''}</div>
                 <div class="sd-cards">${p.handCards.map(c => {
                     const s = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
-                    return `<span style="color:${c.suit === 'hearts' || c.suit === 'diamonds' ? '#e74c3c' : '#2c3e50'}">${c.rank}${s}</span>`;
-                }).join(' ')}</div>
+                    const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
+                    return `<div class="sd-card ${isRed ? 'red' : 'black'}"><span class="sd-rank">${c.rank}</span><span class="sd-suit">${s}</span></div>`;
+                }).join('')}</div>
                 <div class="sd-handname">【${p.handName}】</div>
                 <div class="sd-result">${p.isWinner ? `<span class="sd-win">+${p.pot}</span>` : '<span class="sd-lose">—</span>'}</div>
             </div>

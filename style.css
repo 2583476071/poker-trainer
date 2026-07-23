@@ -1004,6 +1004,35 @@ body {
 }
 
 /* ================================================================
+   摊牌牌面（白底，比mini-card大一号）
+   ================================================================ */
+.sd-card {
+    display: inline-flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    width: 42px; height: 58px;
+    background: #fff; border-radius: 4px;
+    font-weight: bold; line-height: 1; margin: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.sd-card .sd-rank { font-size: 15px; }
+.sd-card .sd-suit { font-size: 14px; }
+.sd-card.red { color: #d32f2f; }
+.sd-card.black { color: #212121; }
+
+/* 公共牌也用这种 */
+#sdPubcards .sd-card { width: 40px; height: 56px; }
+#sdPubcards .sd-card .sd-rank { font-size: 13px; }
+#sdPubcards .sd-card .sd-suit { font-size: 12px; }
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .sd-card { width: 34px; height: 48px; }
+    .sd-card .sd-rank { font-size: 12px; }
+    .sd-card .sd-suit { font-size: 11px; }
+    #sdPubcards .sd-card { width: 32px; height: 44px; }
+}
+
+/* ================================================================
    摊牌结果面板
    ================================================================ */
 #showdownPanel {

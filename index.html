@@ -467,18 +467,17 @@ function updateShowdownPanel(state) {
     // 标题
     document.getElementById('sdTitle').textContent = '🃏 摊牌结果';
 
-    // 公共牌
+    // 公共牌（白底小牌）
     let pubHTML = '';
     for (const c of state.communityCards) {
-        const suitSymbol = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
+        const s = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
         const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
-        pubHTML += `<div class="card ${isRed ? 'red' : 'black'}"><span class="rank">${c.rank}</span><span class="suit">${suitSymbol}</span></div>`;
+        pubHTML += `<div class="sd-card ${isRed ? 'red' : 'black'}"><span class="sd-rank">${c.rank}</span><span class="sd-suit">${s}</span></div>`;
     }
     document.getElementById('sdPubcards').innerHTML = pubHTML;
 
     // 玩家卡片
     const activePlayers = state.players.filter(p => !p.isEliminated && !p.isFolded);
-    // 按手牌强度排序
     const ranked = activePlayers.map(p => {
         const w = state.winners.find(w => w.playerId === p.id || w.name === p.name);
         const handName = w && w.handName ? w.handName : '—';
@@ -491,9 +490,9 @@ function updateShowdownPanel(state) {
             <div class="sd-name">${p.isWinner ? '🏆 ' : ''}${p.name}${p.isHuman ? ' 👤' : ''}</div>
             <div class="sd-cards">${p.handCards.map(c => {
                 const s = { hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠' }[c.suit];
-                const r = c.suit === 'hearts' || c.suit === 'diamonds' ? 'red' : '';
-                return `<span style="color:${r ? '#e74c3c' : '#2c3e50'}">${c.rank}${s}</span>`;
-            }).join(' ')}</div>
+                const isRed = c.suit === 'hearts' || c.suit === 'diamonds';
+                return `<div class="sd-card ${isRed ? 'red' : 'black'}"><span class="sd-rank">${c.rank}</span><span class="sd-suit">${s}</span></div>`;
+            }).join('')}</div>
             <div class="sd-handname">【${p.handName}】</div>
             <div class="sd-result">
                 ${p.isWinner ? `<span class="sd-win">+${p.pot}</span>` : `<span class="sd-lose">—</span>`}
