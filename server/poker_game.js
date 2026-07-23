@@ -63,6 +63,7 @@ class PokerGame {
         this.eliminatedPlayers = [];
         this.gameMode = config.gameMode || 'training';
         this.turnTimeout = (config.turnTimeout || 60) * 1000;
+        this.opponentStats = new Map();
 
         // 广播回调：由 game_manager 设置
         this.onBroadcast = null;        // (playerId, state) => void
@@ -266,6 +267,8 @@ class PokerGame {
     doAction(playerIndex, action, raiseMultiplier) {
         if (playerIndex !== this.currentPlayerIndex) return false;
         const p = this.players[playerIndex];
+
+        this._trackOpponentAction(p, action);
 
         switch (action) {
             case 'fold': this.doFold(p); break;
@@ -521,11 +524,13 @@ class PokerGame {
             totalActive++;
             if (p.id === player.id) positionInOrder = totalActive;
         }
-        if (totalActive <= 2) return 'late';
+        if (totalActive <= 2) return 'BTN';
         const ratio = positionInOrder / totalActive;
-        if (ratio >= 0.75) return 'late';
-        if (ratio >= 0.35) return 'middle';
-        return 'early';
+        if (ratio >= 0.85) return 'BTN';
+        if (ratio >= 0.70) return 'CO';
+        if (ratio >= 0.50) return 'HJ';
+        if (ratio >= 0.30) return 'MP';
+        return 'UTG';
     }
 
     analyzeBoard() { return analyzeBoard(this.communityCards); }
@@ -555,66 +560,111 @@ class PokerGame {
     preflopRangeDecision(player, position, isCheckedToMe, profile, stacks, board) {
         const handKey = handFromCards(player.handCards[0], player.handCards[1]);
         const toCall = this.currentBetLevel - player.currentBet;
-
-        let rangePos = position;
-        const activeCount = this.countActivePlayers();
-        if (activeCount <= 3) rangePos = 'late';
-        else if (activeCount <= 5 && position === 'middle') rangePos = 'late';
-
         const raiseCount = this.raiseCountThisRound;
         const facingRaise = !isCheckedToMe;
+        const activeCount = this.countActivePlayers();
+
+        let rangePos = position;
+        if (activeCount <= 3) rangePos = 'BTN';
+        else if (activeCount <= 5 && (position === 'MP' || position === 'HJ')) rangePos = position === 'MP' ? 'HJ' : 'CO';
+        else if (activeCount <= 6 && position === 'UTG') rangePos = 'MP';
 
         if (!facingRaise) {
             if (raiseCount >= 1) return { action: 'check' };
             if (isInPreflopRange(handKey, rangePos, 'open')) {
                 const agg = profile.aggression;
-                let multiplier;
-                if (agg > 0.45) multiplier = 1.0 + Math.random() * 0.3;
-                else if (agg > 0.30) multiplier = 1.0 + Math.random() * 0.2;
-                else multiplier = 1.0;
-                const raiseTo = Math.floor(this.currentBetLevel * multiplier);
-                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
-                    return { action: 'raise', multiplier };
-                }
+                let mult;
+                if (agg > 0.45)      mult = 1.8 + Math.random() * 0.6;
+                else if (agg > 0.30) mult = 1.6 + Math.random() * 0.5;
+                else                 mult = 1.5 + Math.random() * 0.3;
+                const raiseTo = Math.floor(this.currentBetLevel * mult);
+                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) return { action: 'raise', multiplier: mult };
                 return { action: 'call' };
             }
             return isCheckedToMe ? { action: 'check' } : { action: 'fold' };
         }
 
         if (raiseCount >= 3) {
-            if (isInPreflopRange(handKey, rangePos, 'threeBet') && player.chips > 0) {
-                if (Math.random() < 0.7) return { action: 'allin' };
-                return { action: 'call' };
+            if (isInPreflopRange(handKey, rangePos, 'fourBet')) {
+                if (Math.random() < 0.6) return { action: 'allin' };
+                return { action: 'raise', multiplier: 1.6 + Math.random() * 0.4 };
             }
+            if (isInPreflopRange(handKey, rangePos, 'threeBet') && Math.random() < 0.3) return { action: 'call' };
             return { action: 'fold' };
         }
 
         if (isInPreflopRange(handKey, rangePos, 'threeBet')) {
-            const multiplier = 1.3 + Math.random() * 0.3;
-            const raiseTo = Math.floor(this.currentBetLevel * multiplier);
-            if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
-                return { action: 'raise', multiplier };
-            }
+            const mult = 1.8 + Math.random() * 0.5;
+            const raiseTo = Math.floor(this.currentBetLevel * mult);
+            if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) return { action: 'raise', multiplier: mult };
             return { action: 'call' };
         }
 
         if (isInPreflopRange(handKey, rangePos, 'call')) {
-            if (profile.aggression > 0.40 && Math.random() < 0.15 && raiseCount < 2) {
-                const multiplier = 1.3 + Math.random() * 0.2;
-                const raiseTo = Math.floor(this.currentBetLevel * multiplier);
-                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
-                    return { action: 'raise', multiplier };
-                }
+            if (profile.aggression > 0.40 && Math.random() < 0.12 && raiseCount < 2) {
+                const mult = 1.7 + Math.random() * 0.4;
+                const raiseTo = Math.floor(this.currentBetLevel * mult);
+                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) return { action: 'raise', multiplier: mult };
             }
             if (toCall <= player.chips) return { action: 'call' };
-            if (Math.random() < 0.5) return { action: 'allin' };
+            if (Math.random() < 0.4) return { action: 'allin' };
             return { action: 'fold' };
         }
 
-        if (profile.tightness > 0.60 && Math.random() < 0.12 && this.raiseCountThisRound === 0) {
-            if (toCall <= player.chips * 0.3) return { action: 'call' };
+        if (profile.tightness > 0.55 && Math.random() < 0.08 && raiseCount < 2) {
+            if (toCall <= player.chips * 0.2) return { action: 'call' };
         }
         return { action: 'fold' };
+    }
+
+    // ===== 对手建模 =====
+
+    _trackOpponentAction(p, action) {
+        if (!p.aiProfile) return;
+        let s = this.opponentStats.get(p.id);
+        if (!s) { s = { vpip:0, pfr:0, foldFreq:0, hands:0, folds:0, calls:0, raises:0 }; this.opponentStats.set(p.id, s); }
+        s.hands++;
+        if (action === 'fold') s.folds++;
+        if (action === 'call') s.calls++;
+        if (action === 'raise' || action === 'allin') s.raises++;
+        s.vpip = (s.calls + s.raises) / s.hands;
+        s.pfr = s.raises / s.hands;
+        s.foldFreq = s.folds / Math.max(1, s.hands);
+    }
+
+    _getOpponentStats(player) {
+        return this.opponentStats.get(player.id) || { vpip:0.2, pfr:0.1, foldFreq:0.4, hands:0 };
+    }
+
+    _estimateFoldEquity(player) {
+        let total = 0, count = 0;
+        for (const p of this.players) {
+            if (p.id === player.id || !this.isActive(p) || p.isAllIn) continue;
+            const s = this._getOpponentStats(p);
+            total += s.foldFreq; count++;
+        }
+        return count > 0 ? total / count : 0.3;
+    }
+
+    _estimateImpliedOddsBonus(player, drawBonus) {
+        if (drawBonus < 0.05) return 0;
+        const pot = totalPot(this.players);
+        const stacks = this.players.filter(p => this.isActive(p) && p.id !== player.id).map(p => p.chips);
+        const avgStack = stacks.reduce((a,b)=>a+b,0) / Math.max(1, stacks.length);
+        const implied = Math.min(avgStack, pot * 2) / Math.max(1, pot);
+        return drawBonus * implied * 0.3;
+    }
+
+    _getRiverTier(player) {
+        if (this.phase !== 'river' || this.communityCards.length < 5) return null;
+        const all7 = [...player.handCards, ...this.communityCards];
+        const handRank = all7.length >= 5 ? evaluateHand(all7).rank : 0;
+        const blockerScore = this.evaluateBlockers(player.handCards, null) / 10;
+        if (handRank >= 6) return 5;
+        if (handRank >= 3) return 4;
+        if (handRank === 2 || (handRank === 1 && blockerScore > 0.3)) return 3;
+        if (handRank === 1) return 2;
+        return 1;
     }
 
     // ==================== AI 决策 ====================
@@ -661,9 +711,12 @@ class PokerGame {
 
         const all7 = [...hand, ...this.communityCards];
         const handStrength = all7.length >= 5 ? evaluateHand(all7).rank / 9 : 0.3;
-        const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
+        const positionBonus = position === 'BTN' ? 0.05 : (position === 'CO' ? 0.04 : (position === 'HJ' ? 0.02 : (position === 'SB' ? -0.03 : 0)));
         const blockerScore = this.evaluateBlockers(hand, board) / 10;
-        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus + blockerScore * 0.08);
+        const impliedBonus = this._estimateImpliedOddsBonus(player, drawBonus);
+        const activeCount = this.countActivePlayers();
+        const multiwayPenalty = activeCount > 2 ? (activeCount - 2) * 0.04 : 0;
+        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus + impliedBonus + blockerScore * 0.08 - multiwayPenalty);
         player._lastEffectiveStrength = effectiveStrength;
 
         const mdf = this.calculateMDF();
@@ -677,14 +730,13 @@ class PokerGame {
         const isMassiveOverbet = betPotRatio > 3;
         const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
 
+        const riverTier = this._getRiverTier(player);
         const isRiver = this.phase === 'river';
-        const handRank = this.communityCards.length >= 3 && hand.length === 2
-            ? evaluateHand([...hand, ...this.communityCards]).rank : 0;
-        const isNutHand = handRank >= 6;
-        const isBluffCandidate = handRank <= 1 && blockerScore > 0.4;
-        const isMiddleHand = !isNutHand && !isBluffCandidate;
-        const riverPolarized = isRiver && isMiddleHand;
+        const riverPolarized = isRiver && riverTier !== null && riverTier <= 2;
         const raiseCapped = this.raiseCountThisRound >= 5 || riverPolarized;
+
+        const foldEquity = this._estimateFoldEquity(player);
+        const oppStats = this._getOpponentStats(player);
 
         // 筹码霸凌
         if (!raiseCapped && stacks.isBigStack && stacks.targetsShortStack && !isCheckedToMe && effectiveStrength > 0.3) {
@@ -720,22 +772,26 @@ class PokerGame {
             }
         }
 
-        // 情景化诈唬
+        // 情景化诈唬：基于弃牌率 EV
         if (!raiseCapped && isCheckedToMe && effectiveStrength < 0.5) {
-            const boardBluffBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 1.2 : (board.scary ? 1.5 : 1.0);
-            const blockerBluffBonus = 1.0 + blockerScore * 0.5;
-            const bluffMultiplier = boardBluffBonus * (position === 'late' ? 1.3 : 1.0) * blockerBluffBonus;
-            if (Math.random() < profile.bluff * bluffMultiplier) {
-                if (player.chips > this.currentBetLevel * 2 + BIG_BLIND) {
-                    return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluff') };
-                }
+            const betSize = this.currentBetLevel > 0 ? this.currentBetLevel : this.bigBlindAmount * 3;
+            const bluffEV = foldEquity * totalPot(this.players) - (1 - foldEquity) * betSize;
+            const boardBluffBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 1.25 : (board.scary && foldEquity > 0.45 ? 1.3 : 1.0);
+            const blockerBluffBonus = 1.0 + blockerScore * 0.4;
+            const bluffChance = profile.bluff * boardBluffBonus * blockerBluffBonus * (bluffEV > 0 ? 1.2 : 0.6);
+            const multiwayBluffPenalty = activeCount > 2 ? Math.pow(0.7, activeCount - 2) : 1;
+            if (Math.random() < bluffChance * multiwayBluffPenalty && player.chips > this.currentBetLevel * 2 + this.bigBlindAmount) {
+                return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluff') };
             }
         }
 
         // 面对下注时的诈唬加注
         if (!raiseCapped && !isCheckedToMe && effectiveStrength < 0.35 && toCall > 0 && !isMassiveOverbet) {
-            const bluffVsBet = profile.bluff * (board.scary ? 1.3 : 1.0) * (1.0 + blockerScore * 0.4);
-            if (Math.random() < bluffVsBet && player.chips > toCall * 3) {
+            const raiseSize = toCall * 3;
+            const bluffRaiseEV = foldEquity * (totalPot(this.players) + toCall) - (1 - foldEquity) * raiseSize;
+            const bluffVsBet = profile.bluff * (board.scary && foldEquity > 0.4 ? 1.3 : 1.0) * (1.0 + blockerScore * 0.3);
+            const multiwayPen = activeCount > 2 ? 0.5 : 1;
+            if (Math.random() < bluffVsBet * multiwayPen && player.chips > toCall * 3 && bluffRaiseEV > -player.chips * 0.1) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluffraise') };
             }
         }

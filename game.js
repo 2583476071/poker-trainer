@@ -52,6 +52,7 @@ class PokerGame {
         this.humanStats = null;
         this.gameMode = 'training';
         this._wasShowdown = false;
+        this.opponentStats = new Map();  // playerId -> { vpip, pfr, foldFreq, hands, folds, calls, raises }
     }
 
     /** 初始化游戏：1 真人 + 8 AI，mode='training'|'competitive' */
@@ -276,6 +277,8 @@ class PokerGame {
             if (action === 'raise') this.humanStats.raises++;
             if (action === 'call') this.humanStats.calls++;
         }
+        // 对手建模追踪
+        this._trackOpponentAction(p, action);
 
         switch (action) {
             case 'fold': this.doFold(p); break;
@@ -589,20 +592,21 @@ class PokerGame {
 
     /** 判断玩家在当前活跃玩家中的位置（从庄家顺时针计算） */
     getPositionContext(player) {
-        let positionInOrder = -1;
-        let totalActive = 0;
-        for (let i = 1; i <= 9; i++) {
-            const idx = (this.dealerIndex + i) % 9;
+        let positionInOrder = -1, totalActive = 0;
+        for (let i = 1; i <= this.players.length; i++) {
+            const idx = (this.dealerIndex + i) % this.players.length;
             const p = this.players[idx];
             if (!this.isActive(p)) continue;
             totalActive++;
             if (p.id === player.id) positionInOrder = totalActive;
         }
-        if (totalActive <= 2) return 'late';
+        if (totalActive <= 2) return 'BTN';
         const ratio = positionInOrder / totalActive;
-        if (ratio >= 0.75) return 'late';
-        if (ratio >= 0.35) return 'middle';
-        return 'early';
+        if (ratio >= 0.85) return 'BTN';
+        if (ratio >= 0.70) return 'CO';
+        if (ratio >= 0.50) return 'HJ';
+        if (ratio >= 0.30) return 'MP';
+        return 'UTG';
     }
 
     /** 分析牌面结构（含 GTO 牌面分类） */
@@ -660,90 +664,88 @@ class PokerGame {
 
     // ========== 翻前 GTO 范围决策 ==========
 
-    /** 基于 GTO 范围表的翻前决策（仅翻前调用） */
+    /** 基于 GTO 范围表的翻前决策（6 位置 + 4bet） */
     preflopRangeDecision(player, position, isCheckedToMe, profile, stacks, board) {
         const handKey = handFromCards(player.handCards[0], player.handCards[1]);
         const toCall = this.currentBetLevel - player.currentBet;
-
-        // 确定位置对应的范围键
-        let rangePos = position; // early / middle / late
-
-        // 人数少时位置放宽
-        const activeCount = this.countActivePlayers();
-        if (activeCount <= 3) rangePos = 'late';
-        else if (activeCount <= 5 && position === 'middle') rangePos = 'late';
-
         const raiseCount = this.raiseCountThisRound;
         const facingRaise = !isCheckedToMe;
+        const activeCount = this.countActivePlayers();
 
-        // ===== 场景1: 无人加注（checked to me）→ 开池或过牌 =====
+        // 6 位置 → 少人时放宽
+        let rangePos = position;
+        if (activeCount <= 3) rangePos = 'BTN';
+        else if (activeCount <= 5 && (position === 'MP' || position === 'HJ')) rangePos = position === 'MP' ? 'HJ' : 'CO';
+        else if (activeCount <= 6 && position === 'UTG') rangePos = 'MP';
+
+        // ===== 无人加注 → 开池 =====
         if (!facingRaise) {
-            // 已有 ≥1 次加注后又回到我 → 过牌（不应再加注）
-            if (raiseCount >= 1) {
-                return { action: 'check' };
-            }
-
-            // 在开池范围内 → 加注开池
+            if (raiseCount >= 1) return { action: 'check' };
             if (isInPreflopRange(handKey, rangePos, 'open')) {
-                // 高手偶尔用标准尺度开池，娱乐型偏好小额
                 const agg = profile.aggression;
-                let multiplier;
-                if (agg > 0.45)      multiplier = 1.0 + Math.random() * 0.3;  // 1.0-1.3x pot
-                else if (agg > 0.30) multiplier = 1.0 + Math.random() * 0.2;  // 1.0-1.2x pot
-                else                 multiplier = 1.0;                          // min raise
-
-                const raiseTo = Math.floor(this.currentBetLevel * multiplier);
+                let mult;
+                if (agg > 0.45)      mult = 1.8 + Math.random() * 0.6;
+                else if (agg > 0.30) mult = 1.6 + Math.random() * 0.5;
+                else                 mult = 1.5 + Math.random() * 0.3;
+                const raiseTo = Math.floor(this.currentBetLevel * mult);
                 if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
-                    return { action: 'raise', multiplier };
+                    return { action: 'raise', multiplier: mult };
                 }
                 return { action: 'call' };
             }
-
-            // 不在开池范围 → 过牌（如果免费）或弃牌
+            // SB 特殊：面对无人加注但有人溜入
+            if (rangePos === 'SB' && isCheckedToMe && Math.random() < 0.15 && isInPreflopRange(handKey, 'BTN', 'open')) {
+                const mult = 1.5 + Math.random() * 0.4;
+                return { action: 'raise', multiplier: mult };
+            }
             return isCheckedToMe ? { action: 'check' } : { action: 'fold' };
         }
 
-        // ===== 场景2: 面对加注 → 3-bet / 跟注 / 弃牌 =====
-
-        // ≥3 次加注后：只需要考虑全下或弃牌（4-bet+ 范围极紧）
+        // ===== 面对加注 =====
+        // 4bet+ 范围
         if (raiseCount >= 3) {
-            if (isInPreflopRange(handKey, rangePos, 'threeBet') && player.chips > 0) {
-                if (Math.random() < 0.7) return { action: 'allin' };
-                return { action: 'call' };
+            if (isInPreflopRange(handKey, rangePos, 'fourBet')) {
+                if (Math.random() < 0.6) return { action: 'allin' };
+                return { action: 'raise', multiplier: 1.6 + Math.random() * 0.4 };
             }
+            if (isInPreflopRange(handKey, rangePos, 'threeBet') && Math.random() < 0.3)
+                return { action: 'call' };
             return { action: 'fold' };
         }
 
-        // 面对首次或第二次加注
+        // 3bet 范围
         if (isInPreflopRange(handKey, rangePos, 'threeBet')) {
-            // 在 3-bet 范围内 → 再加注
-            const multiplier = 1.3 + Math.random() * 0.3; // 1.3-1.6x
-            const raiseTo = Math.floor(this.currentBetLevel * multiplier);
+            const mult = 1.8 + Math.random() * 0.5;
+            const raiseTo = Math.floor(this.currentBetLevel * mult);
             if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
-                return { action: 'raise', multiplier };
+                return { action: 'raise', multiplier: mult };
             }
             return { action: 'call' };
         }
 
+        // 跟注范围
         if (isInPreflopRange(handKey, rangePos, 'call')) {
-            // 在跟注范围内 → 跟注（高手偶尔半诈唬加注）
-            if (profile.aggression > 0.40 && Math.random() < 0.15 && raiseCount < 2) {
-                const multiplier = 1.3 + Math.random() * 0.2;
-                const raiseTo = Math.floor(this.currentBetLevel * multiplier);
-                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel) {
-                    return { action: 'raise', multiplier };
-                }
+            // 松凶偶尔 3bet light
+            if (profile.aggression > 0.40 && Math.random() < 0.12 && raiseCount < 2) {
+                const mult = 1.7 + Math.random() * 0.4;
+                const raiseTo = Math.floor(this.currentBetLevel * mult);
+                if (raiseTo <= player.chips && raiseTo > this.currentBetLevel)
+                    return { action: 'raise', multiplier: mult };
             }
             if (toCall <= player.chips) return { action: 'call' };
-            if (Math.random() < 0.5) return { action: 'allin' };
+            if (Math.random() < 0.4) return { action: 'allin' };
             return { action: 'fold' };
         }
 
-        // 不在任何范围内 → 弃牌（娱乐型偶尔跟注看牌）
-        if (profile.tightness > 0.60 && Math.random() < 0.12 && this.raiseCountThisRound === 0) {
-            if (toCall <= player.chips * 0.3) return { action: 'call' };
+        // 盲注位防守（BB/SB 更宽）
+        if ((position === 'SB' || rangePos === 'BTN' && position === 'UTG') && toCall > 0 && toCall <= player.chips * 0.08) {
+            if (Math.random() < 0.25) return { action: 'call' };
         }
 
+        // 不在范围 → 弃牌
+        if (profile.tightness > 0.55 && Math.random() < 0.08 && raiseCount < 2) {
+            if (toCall <= player.chips * 0.2) return { action: 'call' };
+        }
         return { action: 'fold' };
     }
 
@@ -782,6 +784,60 @@ class PokerGame {
             (this.currentBetLevel - player.currentBet) === 0);
     }
 
+    // ===== 对手建模 =====
+
+    _trackOpponentAction(p, action) {
+        if (!p.aiProfile) return;
+        let s = this.opponentStats.get(p.id);
+        if (!s) { s = { vpip:0, pfr:0, foldFreq:0, hands:0, folds:0, calls:0, raises:0 }; this.opponentStats.set(p.id, s); }
+        s.hands++;
+        if (action === 'fold') s.folds++;
+        if (action === 'call') s.calls++;
+        if (action === 'raise' || action === 'allin') s.raises++;
+        s.vpip = (s.calls + s.raises) / s.hands;
+        s.pfr = s.raises / s.hands;
+        s.foldFreq = s.folds / Math.max(1, s.hands);
+    }
+
+    _getOpponentStats(player) {
+        return this.opponentStats.get(player.id) || { vpip:0.2, pfr:0.1, foldFreq:0.4, hands:0 };
+    }
+
+    /** 估算弃牌率（剩余对手平均弃牌频率） */
+    _estimateFoldEquity(player) {
+        let total = 0, count = 0;
+        for (const p of this.players) {
+            if (p.id === player.id || !this.isActive(p) || p.isAllIn) continue;
+            const s = this._getOpponentStats(p);
+            total += s.foldFreq; count++;
+        }
+        return count > 0 ? total / count : 0.3;
+    }
+
+    /** 估算隐含赔率加成（听牌时估算中了能赢多少） */
+    _estimateImpliedOddsBonus(player, drawBonus) {
+        if (drawBonus < 0.05) return 0;
+        const pot = totalPot(this.players);
+        const stacks = this.players.filter(p => this.isActive(p) && p.id !== player.id).map(p => p.chips);
+        const avgStack = stacks.reduce((a,b)=>a+b,0) / Math.max(1, stacks.length);
+        // 隐含赔率 = 能赢的额外筹码 / 当前底池
+        const implied = Math.min(avgStack, pot * 2) / Math.max(1, pot);
+        return drawBonus * implied * 0.3; // 听牌越强+对手筹码越深=隐含赔率越高
+    }
+
+    /** 河牌极化：手牌分 5 档 */
+    _getRiverTier(player) {
+        if (this.phase !== 'river' || this.communityCards.length < 5) return null;
+        const all7 = [...player.handCards, ...this.communityCards];
+        const handRank = all7.length >= 5 ? evaluateHand(all7).rank : 0;
+        const blockerScore = this.evaluateBlockers(player.handCards, null) / 10;
+        if (handRank >= 6) return 5;  // 葫芦+
+        if (handRank >= 3) return 4;  // 三条+
+        if (handRank === 2 || (handRank === 1 && blockerScore > 0.3)) return 3; // 两对/好顶对
+        if (handRank === 1) return 2; // 一对
+        return 1; // 高牌/诈唬候选
+    }
+
     /** AI 决策核心（翻前+翻后） */
     _aiDecideCore(player) {
         const profile = player.aiProfile;
@@ -811,11 +867,13 @@ class PokerGame {
         // ===== 4. 翻后：手牌强度评估 =====
         const all7 = [...hand, ...this.communityCards];
         const handStrength = all7.length >= 5 ? evaluateHand(all7).rank / 9 : 0.3;
-        const positionBonus = position === 'late' ? 0.04 : (position === 'middle' ? 0.02 : 0);
-        const blockerScore = this.evaluateBlockers(hand, board) / 10; // 归一化到 0-1
-        // 阻断牌主要影响诈唬价值，对实际牌力加成有限
-        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus + blockerScore * 0.08);
-        player._lastEffectiveStrength = effectiveStrength; // 供混合策略使用
+        const positionBonus = position === 'BTN' ? 0.05 : (position === 'CO' ? 0.04 : (position === 'HJ' ? 0.02 : (position === 'SB' ? -0.03 : 0)));
+        const blockerScore = this.evaluateBlockers(hand, board) / 10;
+        const impliedBonus = this._estimateImpliedOddsBonus(player, drawBonus);
+        const activeCount = this.countActivePlayers();
+        const multiwayPenalty = activeCount > 2 ? (activeCount - 2) * 0.04 : 0;
+        let effectiveStrength = Math.min(1.0, handStrength + positionBonus + drawBonus + impliedBonus + blockerScore * 0.08 - multiwayPenalty);
+        player._lastEffectiveStrength = effectiveStrength;
 
         // GTO: MDF 最低防守频率 + 范围优势
         const mdf = this.calculateMDF();
@@ -832,18 +890,16 @@ class PokerGame {
         const isMassiveOverbet = betPotRatio > 3;    // 下注超过底池3倍
         const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
 
-        // ===== 河牌极化策略（需在 raiseCapped 之前） =====
+        // ===== 河牌极化（5 档） =====
+        const riverTier = this._getRiverTier(player);
         const isRiver = this.phase === 'river';
-        const handRank = this.communityCards.length >= 3 && hand.length === 2
-            ? evaluateHand([...hand, ...this.communityCards]).rank : 0;
-        const isNutHand = handRank >= 6;
-        const isBluffCandidate = handRank <= 1 && blockerScore > 0.4;
-        const isMiddleHand = !isNutHand && !isBluffCandidate;
-        const riverPolarized = isRiver && isMiddleHand;
-
-        // 加注次数上限：本轮已加注 ≥5 次 → 禁止 AI 再加注
-        // 河牌极化：中间牌不得主动加注
+        // Tier 1-2: 中间牌只能 check-call，不能主动下注
+        const riverPolarized = isRiver && riverTier !== null && riverTier <= 2;
         const raiseCapped = this.raiseCountThisRound >= 5 || riverPolarized;
+
+        // ===== 对手建模数据 =====
+        const foldEquity = this._estimateFoldEquity(player);
+        const oppStats = this._getOpponentStats(player);
 
         // ===== 4. 特殊策略（按优先级排列） =====
 
@@ -889,22 +945,29 @@ class PokerGame {
             }
         }
 
-        // 4f. 情景化诈唬：干燥面适合诈唬，有好阻断牌更容易诈唬
+        // 4f. 情景化诈唬：基于弃牌率 EV 计算
         if (!raiseCapped && isCheckedToMe && effectiveStrength < 0.5) {
-            const boardBluffBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 1.2 : (board.scary ? 1.5 : 1.0);
-            const blockerBluffBonus = 1.0 + blockerScore * 0.5; // 好阻断牌→更敢诈唬
-            const bluffMultiplier = boardBluffBonus * (position === 'late' ? 1.3 : 1.0) * blockerBluffBonus;
-            if (Math.random() < profile.bluff * bluffMultiplier) {
-                if (player.chips > this.currentBetLevel * 2 + BIG_BLIND) {
+            const betSize = this.currentBetLevel > 0 ? this.currentBetLevel : this.bigBlindAmount * 3;
+            const bluffEV = foldEquity * totalPot(this.players) - (1 - foldEquity) * betSize;
+            const boardBluffBonus = (board.boardType === 'dry_high' || board.boardType === 'rainbow_safe') ? 1.25 : (board.scary && foldEquity > 0.45 ? 1.3 : 1.0);
+            const blockerBluffBonus = 1.0 + blockerScore * 0.4;
+            const bluffChance = profile.bluff * boardBluffBonus * blockerBluffBonus * (bluffEV > 0 ? 1.2 : 0.6);
+            // 多人底池减少诈唬
+            const multiwayBluffPenalty = activeCount > 2 ? Math.pow(0.7, activeCount - 2) : 1;
+            if (Math.random() < bluffChance * multiwayBluffPenalty) {
+                if (player.chips > this.currentBetLevel * 2 + this.bigBlindAmount) {
                     return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluff') };
                 }
             }
         }
 
-        // 需要跟注时的诈唬加注（超池下注时禁用——诈唬成本太高）
+        // 面对下注时的诈唬加注
         if (!raiseCapped && !isCheckedToMe && effectiveStrength < 0.35 && toCall > 0 && !isMassiveOverbet) {
-            const bluffVsBet = profile.bluff * (board.scary ? 1.3 : 1.0) * (1.0 + blockerScore * 0.4);
-            if (Math.random() < bluffVsBet && player.chips > toCall * 3) {
+            const raiseSize = toCall * 3;
+            const bluffRaiseEV = foldEquity * (totalPot(this.players) + toCall) - (1 - foldEquity) * raiseSize;
+            const bluffVsBet = profile.bluff * (board.scary && foldEquity > 0.4 ? 1.3 : 1.0) * (1.0 + blockerScore * 0.3);
+            const multiwayPen = activeCount > 2 ? 0.5 : 1;
+            if (Math.random() < bluffVsBet * multiwayPen && player.chips > toCall * 3 && bluffRaiseEV > -player.chips * 0.1) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluffraise') };
             }
         }
