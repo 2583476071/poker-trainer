@@ -116,14 +116,15 @@ body {
 /* ===== 底池显示 ===== */
 #potDisplay {
     position: absolute;
-    top: 48%;
+    top: 50%;
     left: 50%;
-    transform: translate(-50%, 40px);
+    transform: translate(-50%, 60px);
     color: #f0c040;
     font-size: 15px;
     font-weight: bold;
-    z-index: 4;
+    z-index: 10;
     text-shadow: 0 0 10px rgba(240,192,64,0.5);
+    pointer-events: none;
 }
 
 /* ===== 盲注级别显示 ===== */
