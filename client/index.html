@@ -127,11 +127,11 @@
             <button class="btn-fold" id="btnFold">弃牌</button>
             <button class="btn-check" id="btnCheck">过牌</button>
             <button class="btn-call" id="btnCall">跟注</button>
+            <button class="btn-raise" id="btnRaiseMin">最小</button>
             <button class="btn-raise" id="btnRaise33">1/3池</button>
             <button class="btn-raise" id="btnRaise50">半池</button>
             <button class="btn-raise" id="btnRaise67">2/3池</button>
             <button class="btn-raise" id="btnRaise100">满池</button>
-            <button class="btn-raise" id="btnRaise150">1.5x</button>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
             <button class="btn-leave hidden" id="btnLeaveGame">🚪 退出房间</button>
@@ -293,11 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('btnFold').addEventListener('click', () => Network.sendAction('fold'));
 document.getElementById('btnCheck').addEventListener('click', () => Network.sendAction('check'));
 document.getElementById('btnCall').addEventListener('click', () => Network.sendAction('call'));
+document.getElementById('btnRaiseMin').addEventListener('click', () => Network.sendAction('raise', 0));
 document.getElementById('btnRaise33').addEventListener('click', () => Network.sendAction('raise', 0.33));
 document.getElementById('btnRaise50').addEventListener('click', () => Network.sendAction('raise', 0.5));
 document.getElementById('btnRaise67').addEventListener('click', () => Network.sendAction('raise', 0.67));
 document.getElementById('btnRaise100').addEventListener('click', () => Network.sendAction('raise', 1.0));
-document.getElementById('btnRaise150').addEventListener('click', () => Network.sendAction('raise', 1.5));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
 // 接管按钮（动态生成，用事件委托）

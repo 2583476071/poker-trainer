@@ -326,16 +326,19 @@ class PokerGame {
     }
 
     doRaise(p, fraction) {
-        // fraction: 底池比例（0.33=1/3底池, 0.5=半池, 1.0=满池），AI 传入 BB 数
+        // fraction: 0=最小加注, 0.33=1/3池, 0.5=半池, 1.0=满池; AI 传 BB 数
         const pot = totalPot(this.players);
         let raiseTo;
-        if (fraction <= 5 && fraction >= 0.1) {
+        if (fraction === 0) {
+            // 最小加注（1BB）
+            raiseTo = this.currentBetLevel + this.minRaise;
+        } else if (fraction <= 5 && fraction >= 0.1) {
             // 人类：底池比例
             const raiseBy = Math.floor(pot * fraction);
             raiseTo = this.currentBetLevel + raiseBy;
             raiseTo = Math.max(raiseTo, this.currentBetLevel + this.minRaise);
         } else {
-            // AI：BB 倍数（旧兼容）
+            // AI：BB 倍数
             const n = Math.max(1, Math.min(5, Math.round(fraction || 1)));
             raiseTo = this.currentBetLevel + n * this.bigBlindAmount;
         }
@@ -1280,7 +1283,7 @@ class PokerGame {
         if (isMyTurn) {
             const toCall = this.currentBetLevel - viewer.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_33', 'raise_50', 'raise_67', 'raise_100', 'raise_150', 'allin'];
+                availableActions = ['fold', 'check', 'raise_min', 'raise_33', 'raise_50', 'raise_67', 'raise_100', 'allin'];
             } else if (toCall >= viewer.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
