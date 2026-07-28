@@ -126,14 +126,19 @@ class GameManager {
         const humans = room.getConnectedPlayers();
         if (humans.length < 1) return { error: '至少需要1名玩家' };
 
-        // 分配座位：人类先占座 0~N-1，AI 填充剩余
+        // 分配座位：人类与 AI 随机混排
         const seats = [];
         const shuffledAI = shuffle([...AI_PERSONALITIES]);
 
+        // 随机抽座位给人类
+        const allSeats = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        const humanSeats = new Set(allSeats.slice(0, humans.length));
+
+        let humanIdx = 0;
         let aiIdx = 0;
         for (let seat = 0; seat < 9; seat++) {
-            const human = humans[seat];
-            if (human && seat < humans.length) {
+            if (humanSeats.has(seat)) {
+                const human = humans[humanIdx++];
                 seats.push({
                     seatIndex: seat,
                     playerId: human.id,
@@ -142,14 +147,13 @@ class GameManager {
                     aiProfile: null,
                 });
             } else {
-                // AI 填充空位
                 const aiProfile = room.config.gameMode === 'competitive'
                     ? shuffledAI[Math.floor(Math.random() * shuffledAI.length)]
                     : shuffledAI[aiIdx % shuffledAI.length];
                 seats.push({
                     seatIndex: seat,
                     playerId: this._genPlayerId(),
-                    name: `AI-${seat + 1}`,
+                    name: `AI-${aiIdx + 1}`,
                     isHuman: false,
                     aiProfile,
                 });
