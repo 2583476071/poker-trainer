@@ -265,6 +265,13 @@ class GameManager {
         if (!player) return;
 
         player.connected = false;
+
+        // 大厅中房主断线 → 转移房主给下一个在线玩家
+        if (room.phase === 'lobby' && info.playerId === room.hostId) {
+            const next = room.getConnectedPlayers().find(p => p.id !== info.playerId);
+            if (next) room.hostId = next.id;
+        }
+
         console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
 
         // 游戏中 → 启动房间保活定时器

@@ -134,6 +134,12 @@ const Lobby = {
                 ${p.id === roomState.hostId ? '<span class="badge badge-dealer">房主</span>' : ''}
             </div>`
         ).join('');
+
+        // 如果房主转移给了自己，显示开始按钮
+        if (roomState.hostId === Network.myPlayerId) {
+            this.isHost = true;
+            document.getElementById('btnStartGame').classList.remove('hidden');
+        }
     },
 
     _getNickname() {
