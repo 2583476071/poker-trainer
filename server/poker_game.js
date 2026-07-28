@@ -88,12 +88,14 @@ class PokerGame {
         this.handNumber = 0;
         this.eliminatedPlayers = [];
 
-        // 按 seatIndex 排序创建玩家
+        // 按 seatIndex 排序创建玩家（仅创建有人的座位，空位不创建）
         const sorted = [...this.seatConfig].sort((a, b) => a.seatIndex - b.seatIndex);
         for (const s of sorted) {
             const player = createPlayer(s.playerId, s.name, s.isHuman, s.aiProfile || null);
+            player.seatIndex = s.seatIndex;               // 视觉座位号 0-8
+            const arrayIndex = this.players.length;       // 实际数组索引
             this.players.push(player);
-            this.playerIdMap.set(s.playerId, s.seatIndex);
+            this.playerIdMap.set(s.playerId, arrayIndex); // 存数组索引，非座位号
         }
 
         // 随机庄位
@@ -1178,6 +1180,63 @@ class PokerGame {
         return { ok: true, seatIndex: idx };
     }
 
+    /** 观战者加入空位（场上无AI的空位） */
+    joinEmptySeat(playerId, playerName, seatIndex) {
+        // 验证：座位必须在 0-8 范围内
+        if (seatIndex < 0 || seatIndex > 8) return { error: '无效的座位号' };
+        // 验证：该座位必须为空（没有已存在的玩家）
+        const existing = this.players.find(p => p.seatIndex === seatIndex);
+        if (existing) return { error: '该座位已被占用' };
+
+        const player = createPlayer(playerId, playerName, true, null);
+        player.seatIndex = seatIndex;
+        player.chips = this.startingChips;
+        // 当前局标记为已弃牌，下局自动参与
+        player.isFolded = true;
+        player.handCards = [];
+        player.currentBet = 0;
+        player.totalBetThisHand = 0;
+        player.needsToAct = false;
+        player.hasActedThisRound = true;
+
+        // 按 seatIndex 插入到正确位置（保持 players 数组按座位排序）
+        let insertIdx = 0;
+        for (let i = 0; i < this.players.length; i++) {
+            if (this.players[i].seatIndex < seatIndex) {
+                insertIdx = i + 1;
+            } else {
+                break;
+            }
+        }
+        this.players.splice(insertIdx, 0, player);
+
+        // 重建 playerIdMap（插入位置之后的索引全部后移）
+        this.playerIdMap.clear();
+        for (let i = 0; i < this.players.length; i++) {
+            this.playerIdMap.set(this.players[i].id, i);
+        }
+
+        // 调整可能受影响的索引
+        if (this.dealerIndex >= insertIdx) this.dealerIndex++;
+        if (this.currentPlayerIndex >= insertIdx) this.currentPlayerIndex++;
+
+        console.log(`🪑 ${playerName} 加入空位 ${seatIndex}，获得 ${this.startingChips} 积分`);
+        this.message = `${playerName} 入座空位！下局开始参与`;
+
+        this.notifyState();
+        return { ok: true, seatIndex, playerId };
+    }
+
+    /** 获取所有空位编号 */
+    getEmptySeats() {
+        const occupied = new Set(this.players.map(p => p.seatIndex));
+        const empties = [];
+        for (let i = 0; i < 9; i++) {
+            if (!occupied.has(i)) empties.push(i);
+        }
+        return empties;
+    }
+
     /** 真人退出 → AI 接管 */
     convertToAI(playerId) {
         const idx = this._playerIndex(playerId);
@@ -1297,39 +1356,41 @@ class PokerGame {
             ? (this.phase === 'hand_over' || this.phase === 'showdown')
             : (this.phase === 'showdown' || isShowdownResult);
 
+        // 构建9元素座位数组，空位为 null
+        const playersState = new Array(9).fill(null);
+        for (const p of this.players) {
+            let visible = [];
+            if (p.id === playerId) {
+                visible = p.handCards;
+            } else if (revealAll) {
+                visible = (this.gameMode === 'competitive' && p.isFolded) ? [] : p.handCards;
+            }
+            playersState[p.seatIndex] = {
+                id: p.id, name: p.name, chips: p.chips,
+                handCards: visible,
+                currentBet: p.currentBet,
+                totalBetThisHand: p.totalBetThisHand,
+                isFolded: p.isFolded, isAllIn: p.isAllIn,
+                isHuman: p.isHuman,
+                isDealer: p.isDealer, isSmallBlind: p.isSmallBlind, isBigBlind: p.isBigBlind,
+                isActive: this.isActive(p),
+                isEliminated: this.eliminatedPlayers.includes(p.id),
+                aiType: p.aiProfile ? p.aiProfile.desc : null,
+            };
+        }
+
+        const currentPlayer = this.currentPlayerIndex >= 0 ? this.players[this.currentPlayerIndex] : null;
+
         return {
             myPlayerId: playerId,
             myCards: viewer ? viewer.handCards : [],
             myChips: viewer ? viewer.chips : 0,
-            players: this.players.map(p => {
-                // 手牌可见性：
-                // - 自己：始终可见
-                // - 摊牌/hand_over：所有人可见（竞技模式中弃牌者不亮）
-                // - 其他情况：隐藏
-                let visible = [];
-                if (p.id === playerId) {
-                    visible = p.handCards;
-                } else if (revealAll) {
-                    visible = (this.gameMode === 'competitive' && p.isFolded) ? [] : p.handCards;
-                }
-                return {
-                    id: p.id, name: p.name, chips: p.chips,
-                    handCards: visible,
-                    currentBet: p.currentBet,
-                    totalBetThisHand: p.totalBetThisHand,
-                    isFolded: p.isFolded, isAllIn: p.isAllIn,
-                    isHuman: p.isHuman,
-                    isDealer: p.isDealer, isSmallBlind: p.isSmallBlind, isBigBlind: p.isBigBlind,
-                    isActive: this.isActive(p),
-                    isEliminated: this.eliminatedPlayers.includes(p.id),
-                    aiType: p.aiProfile ? p.aiProfile.desc : null,
-                };
-            }),
+            players: playersState,
             communityCards: this.communityCards,
             pot: totalPot(this.players),
             phase: this.phase,
             message: this.message,
-            currentPlayerId: this.currentPlayerIndex >= 0 ? this.players[this.currentPlayerIndex].id : null,
+            currentPlayerId: (this.currentPlayerIndex >= 0 && this.currentPlayerIndex < this.players.length) ? this.players[this.currentPlayerIndex].id : null,
             isMyTurn,
             availableActions,
             toCall: isMyTurn ? Math.max(0, this.currentBetLevel - viewer.currentBet) : 0,
@@ -1351,6 +1412,7 @@ class PokerGame {
             gameMode: this.gameMode,
             revealAllCards: revealAll,
             showAiTypes: this.gameMode === 'training',
+            emptySeats: this.getEmptySeats(),
         };
     }
 
@@ -1389,12 +1451,10 @@ class PokerGame {
             ? (this.phase === 'hand_over' || this.phase === 'showdown')
             : (this.phase === 'showdown' || (this.phase === 'hand_over' && this._wasShowdown));
 
-        return {
-            myPlayerId: spectatorId,
-            myCards: [],
-            myChips: 0,
-            isSpectator: true,
-            players: this.players.map(p => ({
+        // 构建9元素座位数组，空位为 null
+        const specPlayersState = new Array(9).fill(null);
+        for (const p of this.players) {
+            specPlayersState[p.seatIndex] = {
                 id: p.id, name: p.name, chips: p.chips,
                 handCards: revealAll ? p.handCards : [],
                 currentBet: p.currentBet,
@@ -1405,12 +1465,20 @@ class PokerGame {
                 isActive: this.isActive(p),
                 isEliminated: this.eliminatedPlayers.includes(p.id),
                 aiType: p.aiProfile && this.gameMode === 'training' ? p.aiProfile.desc : null,
-            })),
+            };
+        }
+
+        return {
+            myPlayerId: spectatorId,
+            myCards: [],
+            myChips: 0,
+            isSpectator: true,
+            players: specPlayersState,
             communityCards: this.communityCards,
             pot: totalPot(this.players),
             phase: this.phase,
             message: this.message,
-            currentPlayerId: this.currentPlayerIndex >= 0 ? this.players[this.currentPlayerIndex].id : null,
+            currentPlayerId: (this.currentPlayerIndex >= 0 && this.currentPlayerIndex < this.players.length) ? this.players[this.currentPlayerIndex].id : null,
             isMyTurn: false,
             availableActions: [],
             handNumber: this.handNumber,
@@ -1431,6 +1499,7 @@ class PokerGame {
             gameMode: this.gameMode,
             revealAllCards: revealAll,
             showAiTypes: this.gameMode === 'training',
+            emptySeats: this.getEmptySeats(),
         };
     }
 

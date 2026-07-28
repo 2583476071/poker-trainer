@@ -154,13 +154,20 @@ class GameManager {
         const humans = room.getConnectedPlayers();
         if (humans.length < 1) return { error: '至少需要1名玩家' };
 
-        // 分配座位：人类与 AI 随机混排
+        // 计算AI数量：房主可选择 0~N 个AI
+        const aiCount = Math.max(0, parseInt(room.config.aiCount) || 0);
+        const maxAI = 9 - humans.length;
+        const actualAI = Math.min(aiCount, maxAI);
+        const totalPlayers = humans.length + actualAI;
+
+        // 分配座位：人类与 AI 随机混排，剩余座位为空
         const seats = [];
         const shuffledAI = shuffle([...AI_PERSONALITIES]);
 
-        // 随机抽座位给人类
-        const allSeats = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-        const humanSeats = new Set(allSeats.slice(0, humans.length));
+        // 随机抽座位给有人的位置
+        const occupiedSeats = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]).slice(0, totalPlayers);
+        const humanSeats = new Set(occupiedSeats.slice(0, humans.length));
+        const aiSeats = new Set(occupiedSeats.slice(humans.length));
 
         let humanIdx = 0;
         let aiIdx = 0;
@@ -174,7 +181,7 @@ class GameManager {
                     isHuman: true,
                     aiProfile: null,
                 });
-            } else {
+            } else if (aiSeats.has(seat)) {
                 const aiProfile = room.config.gameMode === 'competitive'
                     ? shuffledAI[Math.floor(Math.random() * shuffledAI.length)]
                     : shuffledAI[aiIdx % shuffledAI.length];
@@ -187,6 +194,7 @@ class GameManager {
                 });
                 aiIdx++;
             }
+            // else: 空位，不加入 seats（PokerGame 内部 this.players 不包含该座位）
         }
 
         // 创建 PokerGame
@@ -198,6 +206,14 @@ class GameManager {
             gameMode: room.config.gameMode,
             turnTimeout: room.config.turnTimeout,
         });
+
+        // 存储空位信息供观战者加入时验证
+        room._emptySeats = new Set();
+        for (let seat = 0; seat < 9; seat++) {
+            if (!humanSeats.has(seat) && !aiSeats.has(seat)) {
+                room._emptySeats.add(seat);
+            }
+        }
 
         // 设置广播回调（玩家）
         game.onBroadcast = (playerId, state) => {
@@ -233,7 +249,7 @@ class GameManager {
 
         room.game = game;
         room.phase = 'playing';
-        console.log(`🎮 房间 ${roomCode} 游戏开始，${humans.length} 人类 + ${9 - humans.length} AI`);
+        console.log(`🎮 房间 ${roomCode} 游戏开始，${humans.length} 人类 + ${actualAI} AI，${9 - totalPlayers} 空位`);
         return { ok: true };
     }
 
@@ -343,6 +359,41 @@ class GameManager {
         if (!found) return { error: '未找到该昵称的断线玩家，或玩家已在线' };
 
         return this._doReconnect(room, found.player, socketId, roomCode, found.playerId);
+    }
+
+    /** 观战者加入空位（场上无AI时可入座） */
+    joinEmptySeat(socketId, roomCode, seatIndex) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: '房间不存在' };
+        if (!room.game || room.phase !== 'playing') return { error: '游戏未开始' };
+
+        // 验证观战者身份
+        const spectator = room.spectators.get(this.playerRooms.get(socketId)?.playerId);
+        if (!spectator) return { error: '你不是观战者' };
+
+        // 验证座位为空
+        if (!room._emptySeats || !room._emptySeats.has(seatIndex)) {
+            return { error: '该座位不可加入（非空位或已被占用）' };
+        }
+
+        const playerId = this.playerRooms.get(socketId).playerId;
+        const specName = spectator.name;
+
+        // 调用游戏逻辑加入空位
+        const result = room.game.joinEmptySeat(playerId, specName, seatIndex);
+        if (result.error) return result;
+
+        // 从空位集中移除
+        room._emptySeats.delete(seatIndex);
+
+        // 从观战者移到玩家列表
+        room.spectators.delete(playerId);
+        room.players.set(playerId, { id: playerId, name: specName, socketId, ready: true, connected: true });
+
+        // 返回个性化游戏状态
+        const state = room.game.getState(playerId);
+        console.log(`🪑 ${specName} 加入空位 ${seatIndex} (房间 ${roomCode})`);
+        return { ok: true, state, playerId };
     }
 
     _doReconnect(room, player, socketId, roomCode, playerId) {

@@ -160,6 +160,20 @@ const Network = {
         });
     },
 
+    /** 更新房间配置（仅房主） */
+    updateConfig(config) {
+        return new Promise((resolve) => {
+            this.socket.emit('update_config', config, resolve);
+        });
+    },
+
+    /** 加入空位（观战者） */
+    joinSeat(seatIndex) {
+        return new Promise((resolve) => {
+            this.socket.emit('join_seat', { seatIndex }, resolve);
+        });
+    },
+
     /** 发送玩家行动 */
     sendAction(action, multiplier) {
         this.socket.emit('player_action', { action, multiplier });

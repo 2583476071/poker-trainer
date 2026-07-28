@@ -61,16 +61,31 @@ const Renderer = {
         tableArea.classList.toggle('showdown-phase', isShowdown);
 
         // 为联机模式，座位映射保持不变（seat-0 到 seat-8）
-        // state.players 按座位索引排序
+        // state.players 是9元素数组，空位为 null
         for (let i = 0; i < this._seatCount; i++) {
             const p = state.players[i];
-            if (!p) continue;
 
             const info = document.getElementById('playerInfo' + i);
             const nameEl = document.getElementById('playerName' + i);
             const chipEl = document.getElementById('playerChip' + i);
             const betEl = document.getElementById('playerBet' + i);
             const cardsEl = document.getElementById('playerCards' + i);
+            const seatDiv = document.getElementById('seat-' + i);
+
+            if (!p) {
+                // 空位：显示占位样式
+                nameEl.innerHTML = '<span style="color:#555;">(空位)</span>';
+                chipEl.textContent = '';
+                betEl.textContent = '';
+                cardsEl.innerHTML = '';
+                info.className = 'player-info empty-info';
+                if (seatDiv) seatDiv.classList.add('empty-seat');
+                continue;
+            }
+
+            // 有玩家：移除空位样式
+            if (seatDiv) seatDiv.classList.remove('empty-seat');
+            info.classList.remove('empty-info');
 
             // 名字 + 标记
             let nameHTML = p.name;
@@ -126,7 +141,7 @@ const Renderer = {
         }
         if (state.currentPlayerId != null && state.phase !== 'hand_over' &&
             state.phase !== 'idle' && state.phase !== 'game_over') {
-            const idx = state.players.findIndex(p => p.id === state.currentPlayerId);
+            const idx = state.players.findIndex(p => p && p.id === state.currentPlayerId);
             if (idx >= 0) {
                 const info = document.getElementById('playerInfo' + idx);
                 if (info) info.classList.add('current-turn');
@@ -165,7 +180,7 @@ const Renderer = {
         }
 
         // 自己当前下注
-        const me = state.players.find(p => p.id === state.myPlayerId);
+        const me = state.players.find(p => p && p.id === state.myPlayerId);
         document.getElementById('yourBet').textContent =
             (me && me.totalBetThisHand > 0) ? `已下: ${me.totalBetThisHand}` : '';
 
@@ -213,10 +228,26 @@ const Renderer = {
         if (!state.isSpectator) { bar.classList.add('hidden'); return; }
 
         bar.classList.remove('hidden');
-        const ais = state.players.filter(p => !p.isHuman && !p.isEliminated);
-        bar.innerHTML = '<span>🎯 选择AI入座：</span>' + ais.map(p =>
-            `<button class="takeover-btn" data-pid="${p.id}">${p.name} (${p.chips}积分)</button>`
-        ).join('');
+
+        const ais = state.players.filter(p => p && !p.isHuman && !p.isEliminated);
+        const empties = state.emptySeats || [];
+        if (ais.length === 0 && empties.length === 0) {
+            bar.innerHTML = '<span>👀 无可加入座位，观战中...</span>';
+            return;
+        }
+
+        let html = '';
+        if (ais.length > 0) {
+            html += '<span>🤖 替换AI：</span>' + ais.map(p =>
+                `<button class="takeover-btn" data-pid="${p.id}">${p.name} (${p.chips}积分)</button>`
+            ).join('');
+        }
+        if (empties.length > 0) {
+            html += '<span>🪑 入座空位：</span>' + empties.map(seatIdx =>
+                `<button class="takeover-btn join-empty-btn" data-seat="${seatIdx}" style="background:#1a3a1a;border-color:#2ecc71;color:#2ecc71;">${seatIdx + 1}号位 (+20000积分)</button>`
+            ).join('');
+        }
+        bar.innerHTML = html;
     },
 
     _updateRebuy(state) {
@@ -352,7 +383,7 @@ const Renderer = {
         }
         document.getElementById('sdPubcards').innerHTML = pubHTML;
 
-        const activePlayers = state.players.filter(p => !p.isEliminated && !p.isFolded);
+        const activePlayers = state.players.filter(p => p && !p.isEliminated && !p.isFolded);
         const ranked = activePlayers.map(p => {
             const w = state.winners.find(w => w.playerId === p.id || w.name === p.name);
             return { ...p, handName: w && w.handName ? w.handName : '—', pot: w ? w.pot : 0, isWinner: w && w.pot > 0 };

@@ -81,6 +81,21 @@
             <input type="text" id="inputRoomCode" placeholder="房间码" maxlength="6" style="width:100px">
             <button id="btnJoinRoom">加入房间</button>
         </div>
+        <div id="configRow" class="hidden" style="margin:12px 0;">
+            <label style="color:#aaa;font-size:14px;">AI数量:
+                <select id="inputAICount" style="font-size:14px;padding:4px 8px;background:#0a0a1a;color:#eee;border:1px solid #333;border-radius:4px;">
+                    <option value="0">无AI</option>
+                    <option value="1">1个</option>
+                    <option value="2">2个</option>
+                    <option value="3">3个</option>
+                    <option value="4">4个</option>
+                    <option value="5">5个</option>
+                    <option value="6">6个</option>
+                    <option value="7">7个</option>
+                    <option value="8" selected>8个（满桌）</option>
+                </select>
+            </label>
+        </div>
         <div id="rejoinRow" class="hidden">
             <button class="primary" id="btnRejoinRoom">🔄 重新加入</button>
             <button id="btnCancelRejoin">取消</button>
@@ -305,17 +320,34 @@ document.getElementById('btnRaise67').addEventListener('click', () => Network.se
 document.getElementById('btnRaise100').addEventListener('click', () => Network.sendAction('raise', 1.0));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
-// 接管按钮（动态生成，用事件委托）
+// 接管按钮（动态生成，用事件委托）：支持替换AI + 加入空位
 document.getElementById('takeoverBar').addEventListener('click', async (e) => {
-    const btn = e.target.closest('.takeover-btn');
+    const btn = e.target.closest('button');
     if (!btn) return;
+
+    // 替换AI
     const pid = parseInt(btn.dataset.pid);
-    const res = await Network.takeSeat(pid);
-    if (res.error) { alert(res.error); return; }
-    if (res.state) {
-        document.getElementById('takeoverBar').classList.add('hidden');
-        Renderer.render(res.state);
-        document.getElementById('topMsg').textContent = '✅ 已入座！';
+    if (pid) {
+        const res = await Network.takeSeat(pid);
+        if (res.error) { alert(res.error); return; }
+        if (res.state) {
+            document.getElementById('takeoverBar').classList.add('hidden');
+            Renderer.render(res.state);
+            document.getElementById('topMsg').textContent = '✅ 已入座！';
+        }
+        return;
+    }
+
+    // 加入空位
+    const seatIdx = parseInt(btn.dataset.seat);
+    if (!isNaN(seatIdx)) {
+        const res = await Network.joinSeat(seatIdx);
+        if (res.error) { alert(res.error); return; }
+        if (res.state) {
+            document.getElementById('takeoverBar').classList.add('hidden');
+            Renderer.render(res.state);
+            document.getElementById('topMsg').textContent = '✅ 已加入空位！获得20000积分';
+        }
     }
 });
 // 点击房间码复制
