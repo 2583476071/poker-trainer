@@ -104,6 +104,9 @@
         <div id="seatsContainer"></div>
     </div>
 
+    <!-- 接管栏（观战者） -->
+    <div id="takeoverBar" class="hidden"></div>
+
     <!-- 补码栏 -->
     <div id="rebuyBar" class="hidden">
         <span>💀 你被淘汰了！</span>
@@ -282,6 +285,19 @@ document.getElementById('btnRaise4BB').addEventListener('click', () => Network.s
 document.getElementById('btnRaise5BB').addEventListener('click', () => Network.sendAction('raise', 5));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
+// 接管按钮（动态生成，用事件委托）
+document.getElementById('takeoverBar').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.takeover-btn');
+    if (!btn) return;
+    const pid = parseInt(btn.dataset.pid);
+    const res = await Network.takeSeat(pid);
+    if (res.error) { alert(res.error); return; }
+    if (res.state) {
+        document.getElementById('takeoverBar').classList.add('hidden');
+        Renderer.render(res.state);
+        document.getElementById('topMsg').textContent = '✅ 已入座！';
+    }
+});
 document.getElementById('btnRebuy').addEventListener('click', async () => {
     const res = await Network.rebuy();
     if (res.error) { alert(res.error); return; }

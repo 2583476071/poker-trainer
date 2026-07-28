@@ -73,6 +73,28 @@ function setupNetworkHandlers(io, gameManager) {
             }
         });
 
+        socket.on('take_seat', ({ targetPlayerId }, callback) => {
+            const info = gameManager.getPlayerInfo(socket.id);
+            if (!info) { callback?.({ error: '不在房间中' }); return; }
+            const room = gameManager.getRoom(socket.id);
+            if (!room || !room.game) { callback?.({ error: '游戏未开始' }); return; }
+            // 确认是观战者
+            if (!room.spectators.has(info.playerId)) { callback?.({ error: '你不是观战者' }); return; }
+            const spec = room.spectators.get(info.playerId);
+            const result = room.game.takeSeat(info.playerId, targetPlayerId, spec.name);
+            if (result.ok) {
+                // 从观战者列表移到玩家列表
+                room.spectators.delete(info.playerId);
+                room.players.set(info.playerId, { id: info.playerId, name: spec.name, socketId: socket.id, ready: true, connected: true });
+                // 立刻发送个性化状态
+                const state = room.game.getState(info.playerId);
+                callback?.({ ok: true, state });
+                _broadcastRoomState(gameManager, info.roomCode);
+            } else {
+                callback?.(result);
+            }
+        });
+
         socket.on('rebuy', (_, callback) => {
             const info = gameManager.getPlayerInfo(socket.id);
             if (!info) { callback?.({ error: '不在房间中' }); return; }

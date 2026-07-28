@@ -18,6 +18,21 @@
 #rebuyBar span { color: #e74c3c; font-size: 16px; font-weight: bold; }
 #rebuyBar button { font-size: 16px; padding: 10px 24px; white-space: nowrap; }
 
+/* ===== 接管栏（观战者） ===== */
+#takeoverBar {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: #16213e; border: 2px solid #4fc3f7; border-radius: 10px;
+    padding: 12px 20px; display: flex; align-items: center; gap: 10px; z-index: 99;
+    flex-wrap: wrap; justify-content: center;
+}
+#takeoverBar span { color: #4fc3f7; font-size: 14px; font-weight: bold; white-space: nowrap; }
+.takeover-btn {
+    background: #0f3460; color: #4fc3f7; border: 1px solid #4fc3f7;
+    font-size: 13px; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    white-space: nowrap;
+}
+.takeover-btn:hover { background: #1a5080; color: #fff; }
+
 body {
     background: #1a1a2e;
     color: #e0e0e0;

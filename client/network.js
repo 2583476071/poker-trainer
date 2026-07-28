@@ -140,6 +140,13 @@ const Network = {
         });
     },
 
+    /** 观战者接管 AI 座位 */
+    takeSeat(targetPlayerId) {
+        return new Promise((resolve) => {
+            this.socket.emit('take_seat', { targetPlayerId }, resolve);
+        });
+    },
+
     /** 下一局 */
     nextHand() {
         this.socket.emit('next_hand');

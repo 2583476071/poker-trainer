@@ -993,6 +993,38 @@ class PokerGame {
         return { ok: true, rebuysLeft: this._rebuysLeft };
     }
 
+    /** 观战者接管 AI 座位 */
+    takeSeat(spectatorId, targetPlayerId, spectatorName) {
+        const idx = this._playerIndex(targetPlayerId);
+        if (idx < 0) return { error: '目标玩家不存在' };
+        const target = this.players[idx];
+        if (target.isHuman) return { error: '该座位已被真人占用' };
+        if (this.eliminatedPlayers.includes(targetPlayerId)) return { error: '该玩家已被淘汰' };
+
+        // 接管 AI
+        target.isHuman = true;
+        target.name = spectatorName;
+        target.aiProfile = null;
+        target._lastEffectiveStrength = 0;
+        this.playerIdMap.set(spectatorId, idx);  // 更新 playerId → 座位映射
+        // 删除旧的 AI playerId 映射
+        this.playerIdMap.delete(targetPlayerId);
+        target.id = spectatorId;
+
+        console.log(`🎯 ${spectatorName} 接管了 ${target.name}（座位${idx}，筹码${target.chips}）`);
+        this.message = `${spectatorName} 入座，接管了 AI！`;
+
+        // 如果当前是 AI 的回合，重置等待
+        if (this.currentPlayerIndex === idx && target.needsToAct && !target.isAllIn) {
+            // 变为人类回合，重新通知
+            this._pendingHumanResolve = null;
+            if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
+        }
+
+        this.notifyState();
+        return { ok: true, seatIndex: idx };
+    }
+
     /** 接收人类玩家的行动（由 network_handler 调用） */
     receiveHumanAction(playerId, action, multiplier) {
         const idx = this._playerIndex(playerId);

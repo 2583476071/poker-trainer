@@ -199,8 +199,23 @@ const Renderer = {
         // 补码
         this._updateRebuy(state);
 
+        // 观战接管
+        this._updateTakeover(state);
+
         // 结果弹窗
         this._updateResultOverlay(state);
+    },
+
+    _updateTakeover(state) {
+        const bar = document.getElementById('takeoverBar');
+        if (!bar) return;
+        if (!state.isSpectator) { bar.classList.add('hidden'); return; }
+
+        bar.classList.remove('hidden');
+        const ais = state.players.filter(p => !p.isHuman && !p.isEliminated);
+        bar.innerHTML = '<span>🎯 选择AI入座：</span>' + ais.map(p =>
+            `<button class="takeover-btn" data-pid="${p.id}">${p.name} (${p.chips}积分)</button>`
+        ).join('');
     },
 
     _updateRebuy(state) {
