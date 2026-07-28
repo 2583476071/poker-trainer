@@ -34,6 +34,12 @@
         <div id="seatsContainer"></div>
     </div>
 
+    <!-- 补码栏 -->
+    <div id="rebuyBar" class="hidden">
+        <span>💀 你被淘汰了！</span>
+        <button class="primary" id="btnRebuy">💰 补码 (+20000) 剩余 <span id="rebuyLeft">3</span> 次</button>
+    </div>
+
     <!-- 底部操作区 -->
     <div id="actionBar">
         <!-- 你的手牌和筹码 -->
@@ -341,6 +347,15 @@ function render(state) {
     // 摊牌面板
     updateShowdownPanel(state);
 
+    // 补码
+    const rebuyBar = document.getElementById('rebuyBar');
+    if (state.canRebuy) {
+        rebuyBar.classList.remove('hidden');
+        document.getElementById('rebuyLeft').textContent = state.rebuysLeft;
+    } else {
+        rebuyBar.classList.add('hidden');
+    }
+
     // 结果弹窗
     updateResultOverlay(state);
 }
@@ -532,6 +547,10 @@ document.getElementById('btnNext').addEventListener('click', () => {
     logEntries.length = 0;
     actionLogEl.innerHTML = '';
     game.nextHand();
+});
+document.getElementById('btnRebuy').addEventListener('click', () => {
+    const res = game.rebuy();
+    if (res.error) { alert(res.error); return; }
 });
 document.getElementById('btnNextHand').addEventListener('click', () => {
     document.getElementById('resultOverlay').classList.add('hidden');

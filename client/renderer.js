@@ -191,8 +191,22 @@ const Renderer = {
         // 摊牌面板
         this._updateShowdownPanel(state);
 
+        // 补码
+        this._updateRebuy(state);
+
         // 结果弹窗
         this._updateResultOverlay(state);
+    },
+
+    _updateRebuy(state) {
+        const rebuyDiv = document.getElementById('rebuyBar');
+        if (!rebuyDiv) return;
+        if (state.canRebuy) {
+            rebuyDiv.classList.remove('hidden');
+            document.getElementById('rebuyLeft').textContent = state.rebuysLeft;
+        } else {
+            rebuyDiv.classList.add('hidden');
+        }
     },
 
     _updateButtons(state) {

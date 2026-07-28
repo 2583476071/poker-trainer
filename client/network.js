@@ -133,6 +133,13 @@ const Network = {
         this.socket.emit('player_action', { action, multiplier });
     },
 
+    /** 补码 */
+    rebuy() {
+        return new Promise((resolve) => {
+            this.socket.emit('rebuy', {}, resolve);
+        });
+    },
+
     /** 下一局 */
     nextHand() {
         this.socket.emit('next_hand');

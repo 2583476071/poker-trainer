@@ -61,6 +61,8 @@ class PokerGame {
         this.lastAction = null;
         this.winners = [];
         this.eliminatedPlayers = [];
+        this._rebuys = new Map();           // playerId → 已补码次数（最多3次）
+        this.startingChips = config.startingChips || 20000;
         this.gameMode = config.gameMode || 'training';
         this.turnTimeout = (config.turnTimeout || 60) * 1000;
         this.opponentStats = new Map();
@@ -154,11 +156,17 @@ class PokerGame {
         const bbIndex = this.nextActivePlayerIndex(sbIndex);
 
         if (this.countActivePlayers() < 2) {
-            this.phase = 'game_over';
-            this.message = '游戏结束！';
-            this.notifyState();
-            if (this.onGameOver) this.onGameOver(this._getResults());
-            return;
+            // 检查被淘汰的人类玩家是否还有补码机会
+            const canRebuy = this.players.some(p =>
+                p.isHuman && this.eliminatedPlayers.includes(p.id) && (this._rebuys.get(p.id) || 0) < 3
+            );
+            if (!canRebuy) {
+                this.phase = 'game_over';
+                this.message = '游戏结束！';
+                this.notifyState();
+                if (this.onGameOver) this.onGameOver(this._getResults());
+                return;
+            }
         }
 
         this.players[this.dealerIndex].isDealer = true;
@@ -952,6 +960,38 @@ class PokerGame {
         }, this.turnTimeout);
     }
 
+    /** 补码：被淘汰后重新获得 20000 积分上桌 */
+    rebuy(playerId) {
+        const idx = this._playerIndex(playerId);
+        if (idx < 0) return { error: '玩家不存在' };
+        const player = this.players[idx];
+        if (!this.eliminatedPlayers.includes(playerId)) return { error: '你还在游戏中，不需要补码' };
+        const used = this._rebuys.get(playerId) || 0;
+        if (used >= 3) return { error: '补码次数已用完（最多3次）' };
+
+        // 恢复玩家
+        this.eliminatedPlayers = this.eliminatedPlayers.filter(id => id !== playerId);
+        player.chips = this.startingChips;
+        player.isFolded = false;
+        player.isAllIn = false;
+        player.currentBet = 0;
+        player.totalBetThisHand = 0;
+        player.needsToAct = true;
+        player.hasActedThisRound = false;
+        this._rebuys.set(playerId, used + 1);
+
+        console.log(`💰 ${player.name} 补码第${used + 1}次，获得 ${this.startingChips} 积分`);
+
+        // 如果只剩 AI 在玩导致 game_over，重置为可以继续
+        if (this.phase === 'game_over') {
+            this.phase = 'hand_over';
+            this.message = `${player.name} 补码重新上桌！`;
+        }
+
+        this.notifyState();
+        return { ok: true, rebuysLeft: 3 - (used + 1) };
+    }
+
     /** 接收人类玩家的行动（由 network_handler 调用） */
     receiveHumanAction(playerId, action, multiplier) {
         const idx = this._playerIndex(playerId);
@@ -1083,6 +1123,8 @@ class PokerGame {
             lastAction: this.lastAction,
             currentRoundRaiserId: this.currentRoundRaiserId,
             isGameOver: this.phase === 'game_over',
+            canRebuy: viewer ? (this.eliminatedPlayers.includes(playerId) && (this._rebuys.get(playerId) || 0) < 3) : false,
+            rebuysLeft: viewer ? (3 - (this._rebuys.get(playerId) || 0)) : 0,
             smallBlind: this.smallBlindAmount,
             bigBlind: this.bigBlindAmount,
             gameMode: this.gameMode,

@@ -73,6 +73,15 @@ function setupNetworkHandlers(io, gameManager) {
             }
         });
 
+        socket.on('rebuy', (_, callback) => {
+            const info = gameManager.getPlayerInfo(socket.id);
+            if (!info) { callback?.({ error: '不在房间中' }); return; }
+            const room = gameManager.getRoom(socket.id);
+            if (!room || !room.game) { callback?.({ error: '游戏未开始' }); return; }
+            const result = room.game.rebuy(info.playerId);
+            callback?.(result || { ok: true });
+        });
+
         socket.on('next_hand', () => {
             const room = gameManager.getRoom(socket.id);
             if (!room || !room.game) return;

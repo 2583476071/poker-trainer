@@ -45,6 +45,13 @@
         border-radius: 4px; font-size: 12px; color: #888;
     }
     .notice a { color: #4fc3f7; }
+    #rebuyBar {
+        position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+        background: #1a1a2e; border: 2px solid #f0c040; border-radius: 10px;
+        padding: 12px 24px; display: flex; align-items: center; gap: 16px; z-index: 100;
+    }
+    #rebuyBar span { color: #e74c3c; font-size: 16px; font-weight: bold; }
+    #rebuyBar button { font-size: 16px; padding: 10px 20px; }
 </style>
 </head>
 <body>
@@ -92,6 +99,12 @@
         <div id="potDisplay">底池: 0</div>
         <div id="blindDisplay">100/200</div>
         <div id="seatsContainer"></div>
+    </div>
+
+    <!-- 补码栏 -->
+    <div id="rebuyBar" class="hidden">
+        <span>💀 你被淘汰了！</span>
+        <button class="primary" id="btnRebuy">💰 补码 (+20000) 剩余 <span id="rebuyLeft">3</span> 次</button>
     </div>
 
     <!-- 底部操作区（初始隐藏） -->
@@ -266,6 +279,11 @@ document.getElementById('btnRaise4BB').addEventListener('click', () => Network.s
 document.getElementById('btnRaise5BB').addEventListener('click', () => Network.sendAction('raise', 5));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
+document.getElementById('btnRebuy').addEventListener('click', async () => {
+    const res = await Network.rebuy();
+    if (res.error) { alert(res.error); return; }
+    document.getElementById('gameMsg').textContent = '✅ 补码成功！下一局将重新上桌';
+});
 document.getElementById('btnLeaveGame').addEventListener('click', () => {
     if (confirm('确定要退出房间吗？退出后需要重新加入。')) {
         Network.socket.emit('leave_room');

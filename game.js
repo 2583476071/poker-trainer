@@ -48,6 +48,7 @@ class PokerGame {
         this.onStateChange = null;
         this.pendingHumanAction = null;
         this.eliminatedPlayers = [];
+        this._rebuys = new Map();        // playerId → 已补码次数（最多3次）
         this.account = null;
         this.humanStats = null;
         this.gameMode = 'training';
@@ -142,11 +143,15 @@ class PokerGame {
         const bbIndex = this.nextActivePlayerIndex(sbIndex);
 
         if (this.countActivePlayers() < 2) {
-            // 游戏结束——真人要么赢了要么输了
-            this.phase = 'game_over';
-            this.message = this.players[0].chips > 0 ? '你赢了！所有AI已被淘汰' : '你被淘汰了';
-            this.notifyState();
-            return;
+            // 真人被淘汰但还有补码机会 → 不结束
+            if (this.eliminatedPlayers.includes(0) && (this._rebuys.get(0) || 0) < 3) {
+                // 不结束，等待补码
+            } else {
+                this.phase = 'game_over';
+                this.message = this.players[0].chips > 0 ? '你赢了！所有AI已被淘汰' : '你被淘汰了';
+                this.notifyState();
+                return;
+            }
         }
 
         this.players[this.dealerIndex].isDealer = true;
@@ -1239,6 +1244,8 @@ class PokerGame {
             lastAction: this.lastAction,
             currentRoundRaiserId: this.currentRoundRaiserId,
             isGameOver: this.phase === 'game_over',
+            canRebuy: this.eliminatedPlayers.includes(0) && (this._rebuys.get(0) || 0) < 3,
+            rebuysLeft: 3 - (this._rebuys.get(0) || 0),
             humanChips: this.players[0].chips,
             humanHand: this.players[0].handCards,
             smallBlind: this.smallBlindAmount,
@@ -1255,6 +1262,33 @@ class PokerGame {
         if (this.onStateChange) {
             this.onStateChange(this.getState());
         }
+    }
+
+    /** 补码：被淘汰后重新获得 20000 积分上桌 */
+    rebuy() {
+        const player = this.players[0]; // 单机版玩家永远是索引0
+        if (!this.eliminatedPlayers.includes(0)) return { error: '你还在游戏中' };
+        const used = this._rebuys.get(0) || 0;
+        if (used >= 3) return { error: '补码次数已用完（最多3次）' };
+
+        this.eliminatedPlayers = this.eliminatedPlayers.filter(id => id !== 0);
+        player.chips = 20000;
+        player.isFolded = false;
+        player.isAllIn = false;
+        player.currentBet = 0;
+        player.totalBetThisHand = 0;
+        player.needsToAct = true;
+        player.hasActedThisRound = false;
+        this._rebuys.set(0, used + 1);
+
+        if (this.phase === 'game_over') {
+            this.phase = 'hand_over';
+            this.message = '你已补码重新上桌！';
+        } else {
+            this.message = `💰 补码成功！剩余 ${3 - (used + 1)} 次`;
+        }
+        this.notifyState();
+        return { ok: true, rebuysLeft: 3 - (used + 1) };
     }
 
     /** 真人行动（供 UI 按钮调用） */
