@@ -106,13 +106,9 @@ class GameManager {
                     if (next) room.hostId = next.id;
                 }
             } else if (room.game && room.phase === 'playing') {
-                // 游戏中 → 弃牌 + 标记淘汰
-                const idx = room.game._playerIndex(info.playerId);
-                if (idx >= 0 && room.game.isActive(room.game.players[idx])) {
-                    room.game.doAction(idx, 'fold');
-                }
-                room.players.delete(info.playerId);
-                console.log(`🚪 ${player.name} 退出游戏 (房间 ${info.roomCode})`);
+                // 游戏中 → AI 接管
+                room.game.convertToAI(info.playerId);
+                console.log(`🚪 ${player.name} 退出游戏，AI 接管 (房间 ${info.roomCode})`);
             }
             player.connected = false;
         }

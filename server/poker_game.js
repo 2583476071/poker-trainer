@@ -1025,6 +1025,40 @@ class PokerGame {
         return { ok: true, seatIndex: idx };
     }
 
+    /** 真人退出 → AI 接管 */
+    convertToAI(playerId) {
+        const idx = this._playerIndex(playerId);
+        if (idx < 0) return;
+        const player = this.players[idx];
+        if (!player.isHuman) return;
+
+        // 随机分配一个 AI 性格
+        const aiProfiles = require('../shared/constants.js').AI_PERSONALITIES;
+        const profile = aiProfiles[Math.floor(Math.random() * aiProfiles.length)];
+
+        player.isHuman = false;
+        player.aiProfile = profile;
+        player.name = 'AI-' + (player.name.length > 6 ? player.name.slice(0, 4) : player.name);
+        player._lastEffectiveStrength = 0;
+
+        console.log(`🤖 ${player.name} 接管了退出的玩家（座位${idx}，${player.chips}积分）`);
+
+        // 如果当前是这位玩家的回合，立即触发 AI 决策
+        if (this.currentPlayerIndex === idx && player.needsToAct && this.isActive(player) && !player.isAllIn) {
+            if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
+            this.message = `${player.name}（AI）接管行动...`;
+            this.notifyState();
+            const decision = this.aiDecide(player);
+            setTimeout(() => {
+                if (this.currentPlayerIndex === idx) {
+                    this.doAction(idx, decision.action, decision.multiplier);
+                }
+            }, 500);
+        } else {
+            this.notifyState();
+        }
+    }
+
     /** 接收人类玩家的行动（由 network_handler 调用） */
     receiveHumanAction(playerId, action, multiplier) {
         const idx = this._playerIndex(playerId);
