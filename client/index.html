@@ -66,7 +66,7 @@
         <span class="top-sep">|</span>
         <span id="topPot">底池: 0</span>
         <span class="top-sep">|</span>
-        <span id="topRoomCode"></span>
+        <span id="topRoomCode" title="点击复制房间码" style="cursor:pointer;"></span>
         <span id="topMsg">欢迎！创建或加入房间开始游戏</span>
         <button id="btnVoice" title="语音播报开关" style="background:none;border:1px solid #555;color:#aaa;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">🔊</button>
     </div>
@@ -301,6 +301,31 @@ document.getElementById('takeoverBar').addEventListener('click', async (e) => {
         document.getElementById('topMsg').textContent = '✅ 已入座！';
     }
 });
+// 点击房间码复制
+function copyRoomCode(el) {
+    const code = el.textContent.replace('🏠 ', '').trim();
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+        const orig = el.textContent;
+        el.textContent = '✅ 已复制!';
+        setTimeout(() => { el.textContent = orig; }, 1500);
+    }).catch(() => {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = code; ta.style.position='fixed'; ta.style.left='-9999px';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        const orig = el.textContent;
+        el.textContent = '✅ 已复制!';
+        setTimeout(() => { el.textContent = orig; }, 1500);
+    });
+}
+document.getElementById('topRoomCode').addEventListener('click', function() { copyRoomCode(this); });
+document.getElementById('lobbyRoomCode').addEventListener('click', function() { copyRoomCode(this); });
+// 大厅房间码显示提示
+document.getElementById('lobbyRoomCode').title = '点击复制房间码';
+document.getElementById('lobbyRoomCode').style.cursor = 'pointer';
+
 // 语音开关
 document.getElementById('btnVoice').addEventListener('click', () => {
     const on = Sound.toggleVoice();
