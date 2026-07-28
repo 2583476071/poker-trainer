@@ -317,7 +317,7 @@ class PokerGame {
 
     doRaise(p, multiplier) {
         const rawTarget = this.currentBetLevel * (multiplier || 1.3);
-        const raiseTo = Math.max(Math.floor(rawTarget), this.currentBetLevel + this.minRaise);
+        const raiseTo = Math.max(Math.round(rawTarget / 100) * 100, this.currentBetLevel + this.minRaise);
         const needed = raiseTo - p.currentBet;
         const additional = Math.floor(Math.min(needed, p.chips));
         p.chips -= additional;

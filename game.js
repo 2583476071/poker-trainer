@@ -331,7 +331,7 @@ class PokerGame {
         // multiplier 是百分比：1.3=+30%, 1.5=+50%, 自定义值
         const rawTarget = this.currentBetLevel * multiplier;
         const raiseTo = Math.max(
-            Math.floor(rawTarget),
+            Math.round(rawTarget / 100) * 100,
             this.currentBetLevel + this.minRaise
         );
         const needed = raiseTo - p.currentBet;
