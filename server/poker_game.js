@@ -1100,7 +1100,7 @@ class PokerGame {
             } else if (toCall >= viewer.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
-                availableActions = ['fold', 'call', 'raise_100', 'raise_150', 'raise_200', 'allin'];
+                availableActions = ['fold', 'call', 'raise_1bb', 'raise_2bb', 'raise_3bb', 'raise_4bb', 'raise_5bb', 'allin'];
             }
         }
 
