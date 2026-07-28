@@ -305,20 +305,25 @@ document.getElementById('takeoverBar').addEventListener('click', async (e) => {
 function copyRoomCode(el) {
     const code = el.textContent.replace('🏠 ', '').trim();
     if (!code) return;
-    navigator.clipboard.writeText(code).then(() => {
+    const ta = document.createElement('textarea');
+    ta.value = code;
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    ta.style.zIndex = '-1';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+        document.execCommand('copy');
         const orig = el.textContent;
         el.textContent = '✅ 已复制!';
         setTimeout(() => { el.textContent = orig; }, 1500);
-    }).catch(() => {
-        // fallback
-        const ta = document.createElement('textarea');
-        ta.value = code; ta.style.position='fixed'; ta.style.left='-9999px';
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); document.body.removeChild(ta);
-        const orig = el.textContent;
-        el.textContent = '✅ 已复制!';
-        setTimeout(() => { el.textContent = orig; }, 1500);
-    });
+    } catch (e) {
+        alert('复制失败，房间码: ' + code);
+    }
+    document.body.removeChild(ta);
 }
 document.getElementById('topRoomCode').addEventListener('click', function() { copyRoomCode(this); });
 document.getElementById('lobbyRoomCode').addEventListener('click', function() { copyRoomCode(this); });
