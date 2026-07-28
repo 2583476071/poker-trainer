@@ -207,6 +207,15 @@ body {
     box-shadow: 0 0 15px rgba(240,192,64,0.4);
 }
 
+.player-info.raiser {
+    border-color: #ff5722;
+    box-shadow: 0 0 12px rgba(255,87,34,0.5);
+}
+.player-info.raiser .player-name {
+    font-size: 16px;
+    color: #ff7043;
+}
+
 .player-info.folded  { opacity: 0.4; }
 .player-info.eliminated { opacity: 0.2; }
 

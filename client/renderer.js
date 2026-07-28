@@ -114,9 +114,10 @@ const Renderer = {
             }
 
             // 状态样式
-            info.classList.remove('current-turn', 'folded', 'eliminated');
+            info.classList.remove('current-turn', 'folded', 'eliminated', 'raiser');
             if (p.isEliminated) info.classList.add('eliminated');
             else if (p.isFolded) info.classList.add('folded');
+            if (state.currentRoundRaiserId === p.id && p.isActive && !p.isEliminated) info.classList.add('raiser');
         }
 
         // 高亮当前行动玩家
