@@ -242,6 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 重连成功
     Network.on('reconnected', (res) => {
         console.log('✅ 重连成功');
+        const saved = Session.load();
+        if (saved) document.getElementById('topRoomCode').textContent = '🏠 ' + saved.roomCode;
         if (res.state) {
             // 直接回到游戏中
             Lobby.hide();
