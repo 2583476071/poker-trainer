@@ -17,7 +17,7 @@ class Room {
             smallBlind: 100,
             bigBlind: 200,
             gameMode: 'training',
-            turnTimeout: 60,
+            turnTimeout: 30,
         };
     }
 

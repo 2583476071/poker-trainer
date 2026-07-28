@@ -185,13 +185,13 @@ const timerBar = document.getElementById('turnTimer');
 
 function startTurnTimer(seconds) {
     clearInterval(turnTimerInterval);
-    turnSecondsLeft = seconds || 60;
+    turnSecondsLeft = seconds || 30;
     timerBar.style.width = '100%';
     timerBar.classList.remove('warning');
 
     turnTimerInterval = setInterval(() => {
         turnSecondsLeft--;
-        const pct = Math.max(0, (turnSecondsLeft / 60) * 100);
+        const pct = Math.max(0, (turnSecondsLeft / 30) * 100);
         timerBar.style.width = pct + '%';
         if (turnSecondsLeft <= 10) timerBar.classList.add('warning');
         if (turnSecondsLeft <= 0) clearInterval(turnTimerInterval);
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Renderer.render(state);
         // 倒计时
         if (state.isMyTurn && state.phase !== 'hand_over') {
-            startTurnTimer(60);
+            startTurnTimer(30);
         } else {
             stopTurnTimer();
         }
