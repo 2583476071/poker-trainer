@@ -67,6 +67,7 @@
         <span id="topPot">底池: 0</span>
         <span class="top-sep">|</span>
         <span id="topMsg">欢迎！创建或加入房间开始游戏</span>
+        <button id="btnVoice" title="语音播报开关" style="background:none;border:1px solid #555;color:#aaa;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">🔊</button>
     </div>
 
     <!-- 大厅 -->
@@ -298,6 +299,11 @@ document.getElementById('takeoverBar').addEventListener('click', async (e) => {
         Renderer.render(res.state);
         document.getElementById('topMsg').textContent = '✅ 已入座！';
     }
+});
+// 语音开关
+document.getElementById('btnVoice').addEventListener('click', () => {
+    const on = Sound.toggleVoice();
+    document.getElementById('btnVoice').textContent = on ? '🔊' : '🔇';
 });
 document.getElementById('btnRebuy').addEventListener('click', async () => {
     const res = await Network.rebuy();

@@ -468,7 +468,10 @@ function updateActionLog(state) {
     if (logEntries.includes(key)) return;
     logEntries.push(key);
     if (logEntries.length > 50) logEntries.shift();
-    if (typeof Sound !== 'undefined') Sound.play(a.action);
+    if (typeof Sound !== 'undefined') {
+        Sound.play(a.action);
+        Sound.announce(a.playerName, a.action, a.amount);
+    }
 
     let cls = 'action-' + a.action;
     let icon = { fold:'✗', check:'✓', call:'→', raise:'↑', allin:'⚡' }[a.action] || '';

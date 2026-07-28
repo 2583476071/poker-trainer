@@ -1,8 +1,10 @@
 /* ================================================================
- * client/sound.js — 游戏音效（Web Audio API 合成）
+ * client/sound.js — 游戏音效 + 语音播报（Web API 合成）
  * ================================================================ */
 
 const Sound = {
+    _voiceEnabled: true,
+    _lastAnnounce: '',
     _ctx: null,
 
     _getCtx() {
@@ -116,5 +118,35 @@ const Sound = {
         osc2.connect(gain2).connect(ctx.destination);
         osc2.start(now);
         osc2.stop(now + 0.25);
+    },
+
+    /** 语音播报行动 */
+    announce(playerName, action, amount) {
+        if (!this._voiceEnabled) return;
+        if (!window.speechSynthesis) return;
+
+        let text;
+        switch (action) {
+            case 'fold':  text = `${playerName} 弃牌`; break;
+            case 'check': text = `${playerName} 过牌`; break;
+            case 'call':  text = `${playerName} 跟注`; break;
+            case 'raise': text = `${playerName} 加注到 ${amount}`; break;
+            case 'allin': text = `${playerName} All-in`; break;
+            default: return;
+        }
+        // 避免重复播报
+        if (text === this._lastAnnounce) return;
+        this._lastAnnounce = text;
+
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 1.1;
+        u.volume = 0.8;
+        speechSynthesis.speak(u);
+    },
+
+    toggleVoice() {
+        this._voiceEnabled = !this._voiceEnabled;
+        return this._voiceEnabled;
     },
 };
