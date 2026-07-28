@@ -12,9 +12,14 @@
 
     <!-- 顶栏 -->
     <div id="topBar">
-        <span class="hand-num" id="handNum">准备开始</span>
-        <span class="stats-panel" id="statsPanel"></span>
-        <span class="game-msg" id="gameMsg">欢迎使用德州扑克AI训练器 | <a href="client/" style="color:#4fc3f7;">联机对战</a></span>
+        <span id="topHand">准备开始</span>
+        <span class="top-sep">|</span>
+        <span id="topBlinds">100/200</span>
+        <span class="top-sep">|</span>
+        <span id="topPot">底池: 0</span>
+        <span class="top-sep">|</span>
+        <span id="statsPanel"></span>
+        <span id="topMsg">欢迎使用德州扑克AI训练器 | <a href="client/" style="color:#4fc3f7;">联机对战</a></span>
     </div>
 
     <!-- 牌桌 -->
@@ -26,10 +31,6 @@
         </div>
         <!-- 公共牌 -->
         <div id="communityCards"></div>
-        <!-- 底池 -->
-        <div id="potDisplay">底池: 0</div>
-        <!-- 盲注级别 -->
-        <div id="blindDisplay">100/200</div>
         <!-- 玩家座位 -->
         <div id="seatsContainer"></div>
     </div>
@@ -192,8 +193,10 @@ function renderBigCard(card, faceDown) {
 // 主渲染函数
 function render(state) {
     // 顶栏
-    document.getElementById('handNum').textContent = `第 ${state.handNumber} 手`;
-    document.getElementById('gameMsg').textContent = state.message;
+    document.getElementById('topHand').textContent = `第 ${state.handNumber} 手`;
+    document.getElementById('topBlinds').textContent = `${state.smallBlind}/${state.bigBlind}`;
+    document.getElementById('topPot').textContent = `底池: ${state.pot}`;
+    document.getElementById('topMsg').textContent = state.message;
 
     // 摊牌阶段标记（手机端用于显示所有牌）
     const isShowdown = state.phase === 'showdown' || state.phase === 'hand_over';
@@ -299,10 +302,6 @@ function render(state) {
         }
     }
     commDiv.innerHTML = commHTML;
-
-    // 底池
-    document.getElementById('potDisplay').textContent = `底池: ${state.pot}`;
-    document.getElementById('blindDisplay').textContent = `${state.smallBlind}/${state.bigBlind}`;
 
     // 你的手牌（大图）
     const yourHandDiv = document.getElementById('yourHand');
@@ -650,25 +649,25 @@ function startGame(resume, mode) {
                 game.restoreFromSave(save);
                 updateStatsPanel();
                 console.log('Game restored from save. Phase:', game.phase, 'Hand:', game.handNumber);
-                document.getElementById('gameMsg').textContent = '牌局已恢复 — 轮到你了';
+                document.getElementById('topMsg').textContent = '牌局已恢复 — 轮到你了';
                 return;
             }
         }
         game.init(mode || 'training');
         updateStatsPanel();
         console.log('Game initialized. Phase:', game.phase, 'Hand:', game.handNumber);
-        document.getElementById('gameMsg').textContent = '游戏已启动 — 观察AI行动中...';
+        document.getElementById('topMsg').textContent = '游戏已启动 — 观察AI行动中...';
     } catch(e) {
-        document.getElementById('gameMsg').textContent = '启动错误: ' + e.message;
-        document.getElementById('gameMsg').style.color = '#e74c3c';
+        document.getElementById('topMsg').textContent = '启动错误: ' + e.message;
+        document.getElementById('topMsg').style.color = '#e74c3c';
         console.error(e);
     }
 }
 
 // ===== 错误处理 =====
 window.onerror = function(msg, url, line) {
-    document.getElementById('gameMsg').textContent = 'JS错误: ' + msg + ' (行' + line + ')';
-    document.getElementById('gameMsg').style.color = '#e74c3c';
+    document.getElementById('topMsg').textContent = 'JS错误: ' + msg + ' (行' + line + ')';
+    document.getElementById('topMsg').style.color = '#e74c3c';
 };
 
 // ===== 启动 =====
@@ -678,15 +677,15 @@ try {
             render(state);
             updateStatsPanel();
         } catch(e) {
-            document.getElementById('gameMsg').textContent = '渲染错误: ' + e.message;
-            document.getElementById('gameMsg').style.color = '#e74c3c';
+            document.getElementById('topMsg').textContent = '渲染错误: ' + e.message;
+            document.getElementById('topMsg').style.color = '#e74c3c';
             console.error(e);
         }
     };
     initNickname();
 } catch(e) {
-    document.getElementById('gameMsg').textContent = '启动错误: ' + e.message;
-    document.getElementById('gameMsg').style.color = '#e74c3c';
+    document.getElementById('topMsg').textContent = '启动错误: ' + e.message;
+    document.getElementById('topMsg').style.color = '#e74c3c';
     console.error(e);
 }
 </script>

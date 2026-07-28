@@ -41,22 +41,20 @@ body {
 #topBar {
     width: 100%;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
+    gap: 16px;
     padding: 12px 20px;
-    color: #888;
-    font-size: 13px;
-}
-
-#topBar .hand-num { color: #aaa; }
-
-#topBar .game-msg {
-    color: #f0c040;
+    color: #ccc;
     font-size: 14px;
-    font-weight: bold;
-    flex: 1;
-    text-align: center;
+    background: #12122a;
+    border-bottom: 1px solid #2a2a4a;
 }
+#topBar .top-sep { color: #444; font-size: 12px; }
+#topHand { color: #888; }
+#topBlinds { color: #ff9800; font-weight: bold; }
+#topPot { color: #4fc3f7; font-weight: bold; }
+#topMsg { color: #f0c040; font-weight: bold; flex: 1; text-align: center; }
 
 /* ===== 牌桌主体 ===== */
 #tableArea {

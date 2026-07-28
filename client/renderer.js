@@ -51,8 +51,10 @@ const Renderer = {
     /** 主渲染 */
     render(state) {
         // 顶栏
-        document.getElementById('handNum').textContent = `第 ${state.handNumber} 手`;
-        document.getElementById('gameMsg').textContent = state.message;
+        document.getElementById('topHand').textContent = `第 ${state.handNumber} 手`;
+        document.getElementById('topBlinds').textContent = `${state.smallBlind}/${state.bigBlind}`;
+        document.getElementById('topPot').textContent = `底池: ${state.pot}`;
+        document.getElementById('topMsg').textContent = state.message;
 
         const tableArea = document.getElementById('tableArea');
         const isShowdown = state.phase === 'showdown' || state.phase === 'hand_over';
@@ -141,10 +143,6 @@ const Renderer = {
             }
         }
         commDiv.innerHTML = commHTML;
-
-        // 底池 + 盲注
-        document.getElementById('potDisplay').textContent = `底池: ${state.pot}`;
-        document.getElementById('blindDisplay').textContent = `${state.smallBlind}/${state.bigBlind}`;
 
         // 自己的手牌（大图）
         const yourHandDiv = document.getElementById('yourHand');

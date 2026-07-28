@@ -60,8 +60,13 @@
 
     <!-- 顶栏 -->
     <div id="topBar">
-        <span class="hand-num" id="handNum">联机对战</span>
-        <span class="game-msg" id="gameMsg">欢迎！创建或加入房间开始游戏</span>
+        <span id="topHand">第 1 手</span>
+        <span class="top-sep">|</span>
+        <span id="topBlinds">100/200</span>
+        <span class="top-sep">|</span>
+        <span id="topPot">底池: 0</span>
+        <span class="top-sep">|</span>
+        <span id="topMsg">欢迎！创建或加入房间开始游戏</span>
     </div>
 
     <!-- 大厅 -->
@@ -96,8 +101,6 @@
             <div class="dealer-label">荷官</div>
         </div>
         <div id="communityCards"></div>
-        <div id="potDisplay">底池: 0</div>
-        <div id="blindDisplay">100/200</div>
         <div id="seatsContainer"></div>
     </div>
 
@@ -227,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 游戏结束
     Network.on('gameOver', (results) => {
-        document.getElementById('gameMsg').textContent = '游戏结束！';
+        document.getElementById('topMsg').textContent = '游戏结束！';
     });
 
     // 重连成功
@@ -254,13 +257,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (saved && saved.roomCode) {
             Lobby.showRejoinPanel(saved.roomCode, saved.nickname || '玩家');
         } else {
-            document.getElementById('gameMsg').textContent = '⚠️ 连接断开，请刷新页面';
+            document.getElementById('topMsg').textContent = '⚠️ 连接断开，请刷新页面';
         }
     });
 
     // 断线
     Network.on('disconnect', () => {
-        document.getElementById('gameMsg').textContent = '⚠️ 连接断开，尝试自动重连...';
+        document.getElementById('topMsg').textContent = '⚠️ 连接断开，尝试自动重连...';
     });
 
     Network.on('error', (err) => {
@@ -282,7 +285,7 @@ document.getElementById('btnNext').addEventListener('click', () => Network.nextH
 document.getElementById('btnRebuy').addEventListener('click', async () => {
     const res = await Network.rebuy();
     if (res.error) { alert(res.error); return; }
-    document.getElementById('gameMsg').textContent = '✅ 补码成功！下一局将重新上桌';
+    document.getElementById('topMsg').textContent = '✅ 补码成功！下一局将重新上桌';
 });
 document.getElementById('btnLeaveGame').addEventListener('click', () => {
     if (confirm('确定要退出房间吗？退出后需要重新加入。')) {
