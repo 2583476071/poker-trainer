@@ -67,6 +67,10 @@
             <input type="text" id="inputRoomCode" placeholder="房间码" maxlength="6" style="width:100px">
             <button id="btnJoinRoom">加入房间</button>
         </div>
+        <div id="rejoinRow" class="hidden">
+            <button class="primary" id="btnRejoinRoom">🔄 重新加入</button>
+            <button id="btnCancelRejoin">取消</button>
+        </div>
         <div class="room-code-display" id="lobbyRoomCode"></div>
         <div id="lobbyStatus"></div>
         <div id="playerList"></div>
@@ -210,9 +214,37 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gameMsg').textContent = '游戏结束！';
     });
 
+    // 重连成功
+    Network.on('reconnected', (res) => {
+        console.log('✅ 重连成功');
+        if (res.state) {
+            // 直接回到游戏中
+            Lobby.hide();
+            Renderer.render(res.state);
+        } else {
+            // 回到大厅
+            Lobby.show();
+            Lobby._enterRoom(
+                Session.load()?.roomCode || '',
+                false,
+                '已重新连接'
+            );
+        }
+    });
+
+    // 重连失败 → 显示重新加入面板
+    Network.on('reconnectFailed', () => {
+        const saved = Session.load();
+        if (saved && saved.roomCode) {
+            Lobby.showRejoinPanel(saved.roomCode, saved.nickname || '玩家');
+        } else {
+            document.getElementById('gameMsg').textContent = '⚠️ 连接断开，请刷新页面';
+        }
+    });
+
     // 断线
     Network.on('disconnect', () => {
-        document.getElementById('gameMsg').textContent = '⚠️ 连接断开，请刷新页面';
+        document.getElementById('gameMsg').textContent = '⚠️ 连接断开，尝试自动重连...';
     });
 
     Network.on('error', (err) => {

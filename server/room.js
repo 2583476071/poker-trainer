@@ -35,6 +35,11 @@ class Room {
         return this.phase === 'lobby' && this.getConnectedPlayers().length < 9;
     }
 
+    /** 更新最后活跃时间 */
+    touch() {
+        this._lastActivity = Date.now();
+    }
+
     /** 转为可序列化的 JSON（通过 Socket.IO 发送） */
     toJSON() {
         return {

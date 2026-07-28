@@ -108,6 +108,15 @@ function setupNetworkHandlers(io, gameManager) {
             callback?.({ ok: true, ...result });
             if (roomCode) _broadcastRoomState(gameManager, roomCode);
         });
+
+        // 掉线后通过昵称重新加入
+        socket.on('rejoin_room', ({ roomCode, nickname }, callback) => {
+            const result = gameManager.reconnectByName(socket.id, roomCode, nickname);
+            if (result.error) { callback?.(result); return; }
+            socket.join(roomCode);
+            callback?.({ ok: true, ...result });
+            if (roomCode) _broadcastRoomState(gameManager, roomCode);
+        });
     });
 }
 

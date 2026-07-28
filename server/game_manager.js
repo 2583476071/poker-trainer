@@ -217,18 +217,46 @@ class GameManager {
         // lobby → 标记未准备
     }
 
-    /** 重连 */
+    /** 重连（通过 playerId） */
     reconnect(socketId, playerId, roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: '房间不存在' };
         const player = room.players.get(playerId);
-        if (!player) return { error: '玩家不存在' };
+        if (!player) return { error: '玩家不存在，可能已被移除' };
+
+        return this._doReconnect(room, player, socketId, roomCode, playerId);
+    }
+
+    /** 重连（通过昵称 — 适合掉线后忘记 playerId 的情况） */
+    reconnectByName(socketId, roomCode, playerName) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: '房间不存在或已过期' };
+
+        // 按名称查找断线玩家
+        let found = null;
+        for (const [id, p] of room.players) {
+            if (p.name === playerName && !p.connected) {
+                found = { player: p, playerId: id };
+                break;
+            }
+        }
+        if (!found) return { error: '未找到该昵称的断线玩家，或玩家已在线' };
+
+        return this._doReconnect(room, found.player, socketId, roomCode, found.playerId);
+    }
+
+    _doReconnect(room, player, socketId, roomCode, playerId) {
+        // 清除房间过期定时器
+        if (room._cleanupTimer) {
+            clearTimeout(room._cleanupTimer);
+            room._cleanupTimer = null;
+        }
 
         player.connected = true;
         player.socketId = socketId;
+        room.touch();
 
-        // 更新 socket 映射（可能从不同 socket 重连）
-        // 清理旧映射
+        // 更新 socket 映射
         for (const [sid, info] of this.playerRooms) {
             if (info.playerId === playerId && sid !== socketId) {
                 this.playerRooms.delete(sid);
@@ -241,10 +269,40 @@ class GameManager {
         // 如果在游戏中，发送当前状态
         if (room.game && room.phase === 'playing') {
             const state = room.game.getState(playerId);
-            return { reconnected: true, state };
+            return { reconnected: true, state, playerId };
         }
 
-        return { reconnected: true };
+        return { reconnected: true, playerId };
+    }
+
+    /** 处理断线 — 游戏中掉线保留玩家，设置房间过期定时器 */
+    handleDisconnect(socketId) {
+        const info = this.playerRooms.get(socketId);
+        if (!info) return;
+        const room = this.rooms.get(info.roomCode);
+        if (!room) return;
+        const player = room.players.get(info.playerId);
+        if (!player) return;
+
+        player.connected = false;
+        console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
+
+        // 游戏中 → 启动房间保活定时器（30分钟后清理）
+        if (room.phase !== 'lobby') {
+            room._lastActivity = Date.now();
+            if (!room._cleanupTimer) {
+                room._cleanupTimer = setTimeout(() => {
+                    const hasConnected = [...room.players.values()].some(p => p.connected);
+                    if (!hasConnected) {
+                        console.log(`🧹 房间 ${room.code} 所有玩家离线超时，清理`);
+                        this.rooms.delete(room.code);
+                        for (const [sid, inf] of this.playerRooms) {
+                            if (inf.roomCode === room.code) this.playerRooms.delete(sid);
+                        }
+                    }
+                }, 30 * 60 * 1000); // 30 分钟
+            }
+        }
     }
 
     /** 设置 Socket.IO 实例（供 network_handler 调用） */
