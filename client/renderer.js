@@ -216,7 +216,7 @@ const Renderer = {
         if (actions.includes('call')) {
             const btn = document.getElementById('btnCall');
             btn.classList.remove('hidden');
-            btn.textContent = '跟注';
+            btn.textContent = '跟注 ' + (state.toCall || '');
         }
         if (actions.includes('raise_100')) document.getElementById('btnRaise100').classList.remove('hidden');
         if (actions.includes('raise_150')) document.getElementById('btnRaise150').classList.remove('hidden');

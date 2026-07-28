@@ -306,7 +306,7 @@ class PokerGame {
 
     doCall(p) {
         const raw = Math.min(this.currentBetLevel - p.currentBet, p.chips);
-        const callAmount = Math.round(raw * 2) / 2;
+        const callAmount = Math.floor(raw);
         p.chips -= callAmount;
         p.currentBet += callAmount;
         p.totalBetThisHand += callAmount;
@@ -317,9 +317,9 @@ class PokerGame {
 
     doRaise(p, multiplier) {
         const rawTarget = this.currentBetLevel * (multiplier || 1.3);
-        const raiseTo = Math.max(Math.round(rawTarget * 2) / 2, this.currentBetLevel + this.minRaise);
+        const raiseTo = Math.max(Math.floor(rawTarget), this.currentBetLevel + this.minRaise);
         const needed = raiseTo - p.currentBet;
-        const additional = Math.round(Math.min(needed, p.chips) * 2) / 2;
+        const additional = Math.floor(Math.min(needed, p.chips));
         p.chips -= additional;
         p.currentBet += additional;
         p.totalBetThisHand += additional;
@@ -1055,6 +1055,7 @@ class PokerGame {
             currentPlayerId: this.currentPlayerIndex >= 0 ? this.players[this.currentPlayerIndex].id : null,
             isMyTurn,
             availableActions,
+            toCall: isMyTurn ? Math.max(0, this.currentBetLevel - viewer.currentBet) : 0,
             handNumber: this.handNumber,
             winners: this.winners.map(w => ({
                 name: w.player.name,
