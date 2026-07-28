@@ -1264,14 +1264,14 @@ class PokerGame {
         if (this.onStateChange) {
             this.onStateChange(this.getState());
         }
-        // hand_over 时自动推进（3 秒后），防止卡在结算界面
+        // hand_over 时 5 秒后自动推进
         if (this.phase === 'hand_over' && !this._handOverTimer) {
             this._handOverTimer = setTimeout(() => {
                 this._handOverTimer = null;
                 if (this.phase === 'hand_over') {
                     this.nextHand();
                 }
-            }, 3000);
+            }, 5000);
         }
     }
 

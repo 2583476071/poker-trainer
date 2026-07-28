@@ -1213,14 +1213,14 @@ class PokerGame {
             }
         }
 
-        // hand_over 时自动推进（3 秒后），防止淘汰玩家卡在结算界面
+        // hand_over 时 5 秒后自动推进
         if (this.phase === 'hand_over' && !this._handOverTimer) {
             this._handOverTimer = setTimeout(() => {
                 this._handOverTimer = null;
                 if (this.phase === 'hand_over') {
                     this.nextHand();
                 }
-            }, 3000);
+            }, 5000);
         }
 
         // 通知观战者（通过 game_manager 的 _spectatorCallback）
