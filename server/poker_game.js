@@ -74,6 +74,7 @@ class PokerGame {
         // 人类回合等待机制
         this._pendingHumanResolve = null;
         this._turnTimer = null;
+        this._handOverTimer = null;
 
         // 初始化玩家和游戏
         this._initFromConfig();
@@ -136,6 +137,7 @@ class PokerGame {
         this._wasShowdown = false;
         this._pendingHumanResolve = null;
         if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
+        if (this._handOverTimer) { clearTimeout(this._handOverTimer); this._handOverTimer = null; }
 
         for (const p of this.players) {
             p.handCards = [];
@@ -1008,6 +1010,7 @@ class PokerGame {
     /** 开始下一局 */
     nextHand() {
         if (this.phase !== 'hand_over') return;
+        if (this._handOverTimer) { clearTimeout(this._handOverTimer); this._handOverTimer = null; }
         this.startNewHand();
     }
 
@@ -1135,11 +1138,23 @@ class PokerGame {
     /** 向所有人类玩家广播个性化状态 */
     notifyState() {
         if (!this.onBroadcast) return;
+
+        // 向所有人类玩家（包括被淘汰但可补码的）发送状态
         for (const p of this.players) {
-            if (p.isHuman && !this.eliminatedPlayers.includes(p.id)) {
+            if (p.isHuman) {
                 const state = this.getState(p.id);
                 this.onBroadcast(p.id, state);
             }
+        }
+
+        // hand_over 时自动推进（3 秒后），防止淘汰玩家卡在结算界面
+        if (this.phase === 'hand_over' && !this._handOverTimer) {
+            this._handOverTimer = setTimeout(() => {
+                this._handOverTimer = null;
+                if (this.phase === 'hand_over') {
+                    this.nextHand();
+                }
+            }, 3000);
         }
     }
 

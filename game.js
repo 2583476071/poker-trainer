@@ -53,6 +53,7 @@ class PokerGame {
         this.humanStats = null;
         this.gameMode = 'training';
         this._wasShowdown = false;
+        this._handOverTimer = null;
         this.opponentStats = new Map();  // playerId -> { vpip, pfr, foldFreq, hands, folds, calls, raises }
     }
 
@@ -117,6 +118,7 @@ class PokerGame {
         this.lastAction = null;
         this._wasShowdown = false;
         this.pendingHumanAction = null;
+        if (this._handOverTimer) { clearTimeout(this._handOverTimer); this._handOverTimer = null; }
 
         for (const p of this.players) {
             p.handCards = [];
@@ -1262,6 +1264,15 @@ class PokerGame {
         if (this.onStateChange) {
             this.onStateChange(this.getState());
         }
+        // hand_over 时自动推进（3 秒后），防止卡在结算界面
+        if (this.phase === 'hand_over' && !this._handOverTimer) {
+            this._handOverTimer = setTimeout(() => {
+                this._handOverTimer = null;
+                if (this.phase === 'hand_over') {
+                    this.nextHand();
+                }
+            }, 3000);
+        }
     }
 
     /** 补码：被淘汰后重新获得 20000 积分上桌（全局共5次） */
@@ -1301,6 +1312,7 @@ class PokerGame {
     /** 开始下一局 */
     nextHand() {
         if (this.phase !== 'hand_over') return;
+        if (this._handOverTimer) { clearTimeout(this._handOverTimer); this._handOverTimer = null; }
         this.startNewHand();
     }
 
