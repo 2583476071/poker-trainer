@@ -70,15 +70,23 @@ class GameManager {
 
         const player = room.players.get(info.playerId);
         if (player) {
-            player.connected = false;
             if (room.phase === 'lobby') {
+                // 大厅中 → 直接删除
                 room.players.delete(info.playerId);
-                // 房主转移
                 if (info.playerId === room.hostId) {
                     const next = room.getConnectedPlayers()[0];
                     if (next) room.hostId = next.id;
                 }
+            } else if (room.game && room.phase === 'playing') {
+                // 游戏中 → 弃牌 + 标记淘汰
+                const idx = room.game._playerIndex(info.playerId);
+                if (idx >= 0 && room.game.isActive(room.game.players[idx])) {
+                    room.game.doAction(idx, 'fold');
+                }
+                room.players.delete(info.playerId);
+                console.log(`🚪 ${player.name} 退出游戏 (房间 ${info.roomCode})`);
             }
+            player.connected = false;
         }
         this.playerRooms.delete(socketId);
     }

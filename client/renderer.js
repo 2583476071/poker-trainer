@@ -202,8 +202,17 @@ const Renderer = {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         });
+        // 退出按钮也先隐藏
+        const leaveBtn = document.getElementById('btnLeaveGame');
+        if (leaveBtn) leaveBtn.classList.add('hidden');
 
         if (state.isGameOver) return;
+
+        // 游戏中始终显示退出按钮
+        if (state.phase !== 'hand_over' && state.phase !== 'idle') {
+            if (leaveBtn) leaveBtn.classList.remove('hidden');
+        }
+
         if (state.phase === 'hand_over') {
             document.getElementById('btnNext').classList.remove('hidden');
             return;

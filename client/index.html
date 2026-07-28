@@ -111,6 +111,7 @@
             <button class="btn-raise" id="btnRaise200">+200%</button>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
+            <button class="btn-leave hidden" id="btnLeaveGame">🚪 退出房间</button>
         </div>
     </div>
 </div>
@@ -261,6 +262,15 @@ document.getElementById('btnRaise150').addEventListener('click', () => Network.s
 document.getElementById('btnRaise200').addEventListener('click', () => Network.sendAction('raise', 3.0));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
+document.getElementById('btnLeaveGame').addEventListener('click', () => {
+    if (confirm('确定要退出房间吗？退出后需要重新加入。')) {
+        Network.socket.emit('leave_room');
+        Session.clear();
+        Lobby._resetLobby();
+        Lobby.show();
+        stopTurnTimer();
+    }
+});
 </script>
 
 </body>

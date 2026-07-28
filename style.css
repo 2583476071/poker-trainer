@@ -355,6 +355,15 @@ body {
 }
 .btn-allin:hover:not(:disabled) { background: #8e24aa; }
 
+.btn-leave {
+    background: #555;
+    color: #aaa;
+    font-size: 14px;
+    padding: 10px 24px;
+    border: 1px solid #666;
+}
+.btn-leave:hover { background: #9b2226; color: #fff; border-color: #9b2226; }
+
 .btn-next {
     display: inline-block;
     background: #f0c040;
