@@ -7,6 +7,7 @@ class Room {
         this.code = code;               // 6位房间码，如 "A3F9K2"
         this.hostId = hostId;           // 房主 playerId
         this.players = new Map();       // playerId → { id, name, socketId, ready, connected }
+        this.spectators = new Map();    // playerId → { id, name, socketId, connected }
         this.phase = 'lobby';           // 'lobby' | 'playing' | 'finished'
         this.game = null;               // PokerGame 实例（null 直到游戏开始）
         this.createdAt = Date.now();
@@ -30,9 +31,10 @@ class Room {
         return [...this.players.values()].filter(p => p.ready && p.connected);
     }
 
-    /** 房间是否可加入 */
+    /** 房间是否可加入（大厅最多9人，游戏中可观战） */
     isJoinable() {
-        return this.phase === 'lobby' && this.getConnectedPlayers().length < 9;
+        if (this.phase === 'lobby') return this.getConnectedPlayers().length < 9;
+        return true; // 游戏中允许观战
     }
 
     /** 更新最后活跃时间 */

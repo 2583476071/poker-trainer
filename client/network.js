@@ -99,7 +99,7 @@ const Network = {
     joinRoom(roomCode, nickname) {
         return new Promise((resolve) => {
             this.socket.emit('join_room', { roomCode, nickname }, (res) => {
-                if (res.ok) {
+                if (res.ok || res.spectator) {
                     this.myPlayerId = res.playerId;
                     Session.save(roomCode, res.playerId, nickname);
                 }

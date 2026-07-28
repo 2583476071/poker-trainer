@@ -45,15 +45,34 @@ class GameManager {
         return { roomCode: code, playerId };
     }
 
-    /** 加入房间 */
+    /** 加入房间（游戏中则作为观战者） */
     joinRoom(roomCode, socketId, name) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: '房间不存在' };
         if (!room.isJoinable()) return { error: '房间无法加入（已满或已开始游戏）' };
-        if ([...room.players.values()].some(p => p.name === name)) {
+
+        const allNames = [...room.players.values(), ...room.spectators.values()]
+            .map(p => p.name);
+        if (allNames.includes(name)) {
             return { error: '昵称已被使用，请换一个' };
         }
 
+        if (room.phase === 'playing' || room.phase === 'finished') {
+            // 观战模式
+            const playerId = this._genPlayerId();
+            room.spectators.set(playerId, { id: playerId, name, socketId, connected: true });
+            this.playerRooms.set(socketId, { roomCode, playerId });
+            console.log(`👀 ${name} 观战房间 ${roomCode}`);
+
+            // 立即发送当前游戏状态
+            if (room.game) {
+                const state = room.game.getSpectatorState(playerId);
+                return { roomCode, playerId, spectator: true, state };
+            }
+            return { roomCode, playerId, spectator: true };
+        }
+
+        // 大厅正常加入
         const playerId = this._genPlayerId();
         room.players.set(playerId, { id: playerId, name, socketId, ready: false, connected: true });
         this.playerRooms.set(socketId, { roomCode, playerId });
@@ -67,6 +86,15 @@ class GameManager {
         if (!info) return;
         const room = this.rooms.get(info.roomCode);
         if (!room) return;
+
+        // 观战者 → 直接移除
+        const spectator = room.spectators.get(info.playerId);
+        if (spectator) {
+            room.spectators.delete(info.playerId);
+            this.playerRooms.delete(socketId);
+            console.log(`👀 ${spectator.name} 退出观战 (房间 ${info.roomCode})`);
+            return;
+        }
 
         const player = room.players.get(info.playerId);
         if (player) {
@@ -171,14 +199,22 @@ class GameManager {
             turnTimeout: room.config.turnTimeout,
         });
 
-        // 设置广播回调
+        // 设置广播回调（玩家）
         game.onBroadcast = (playerId, state) => {
-            // 找到该玩家的 socket
             for (const [sid, info] of this.playerRooms) {
                 if (info.roomCode === roomCode && info.playerId === playerId) {
                     const io = this._io;
                     if (io) io.to(sid).emit('state_update', state);
                     break;
+                }
+            }
+        };
+
+        // 设置广播回调（观战者）
+        game._onSpectatorBroadcast = (state) => {
+            for (const [sid, info] of this.playerRooms) {
+                if (info.roomCode === roomCode && room.spectators.has(info.playerId)) {
+                    if (this._io) this._io.to(sid).emit('state_update', state);
                 }
             }
         };
@@ -219,14 +255,35 @@ class GameManager {
         if (!info) return;
         const room = this.rooms.get(info.roomCode);
         if (!room) return;
+
+        // 观战者断线 → 直接清理
+        const spectator = room.spectators.get(info.playerId);
+        if (spectator) {
+            room.spectators.delete(info.playerId);
+            this.playerRooms.delete(socketId);
+            console.log(`👀 ${spectator.name} 观战者断开 (房间 ${info.roomCode})`);
+            return;
+        }
+
         const player = room.players.get(info.playerId);
         if (!player) return;
 
         player.connected = false;
         console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
 
-        // 游戏中 → 自动弃牌（由 poker_game 的 turn timeout 处理）
-        // lobby → 标记未准备
+        // 游戏中 → 启动房间保活定时器
+        if (room.phase !== 'lobby' && !room._cleanupTimer) {
+            room._cleanupTimer = setTimeout(() => {
+                const hasConnected = [...room.players.values()].some(p => p.connected);
+                if (!hasConnected) {
+                    console.log(`🧹 房间 ${room.code} 所有玩家离线超时，清理`);
+                    this.rooms.delete(room.code);
+                    for (const [sid, inf] of this.playerRooms) {
+                        if (inf.roomCode === room.code) this.playerRooms.delete(sid);
+                    }
+                }
+            }, 30 * 60 * 1000);
+        }
     }
 
     /** 重连（通过 playerId） */
@@ -285,36 +342,6 @@ class GameManager {
         }
 
         return { reconnected: true, playerId };
-    }
-
-    /** 处理断线 — 游戏中掉线保留玩家，设置房间过期定时器 */
-    handleDisconnect(socketId) {
-        const info = this.playerRooms.get(socketId);
-        if (!info) return;
-        const room = this.rooms.get(info.roomCode);
-        if (!room) return;
-        const player = room.players.get(info.playerId);
-        if (!player) return;
-
-        player.connected = false;
-        console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
-
-        // 游戏中 → 启动房间保活定时器（30分钟后清理）
-        if (room.phase !== 'lobby') {
-            room._lastActivity = Date.now();
-            if (!room._cleanupTimer) {
-                room._cleanupTimer = setTimeout(() => {
-                    const hasConnected = [...room.players.values()].some(p => p.connected);
-                    if (!hasConnected) {
-                        console.log(`🧹 房间 ${room.code} 所有玩家离线超时，清理`);
-                        this.rooms.delete(room.code);
-                        for (const [sid, inf] of this.playerRooms) {
-                            if (inf.roomCode === room.code) this.playerRooms.delete(sid);
-                        }
-                    }
-                }, 30 * 60 * 1000); // 30 分钟
-            }
-        }
     }
 
     /** 设置 Socket.IO 实例（供 network_handler 调用） */

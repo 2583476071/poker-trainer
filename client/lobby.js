@@ -62,6 +62,15 @@ const Lobby = {
         if (!code) { alert('请输入房间码'); return; }
         const res = await Network.joinRoom(code, name);
         if (res.error) { alert(res.error); return; }
+        if (res.spectator) {
+            // 观战模式
+            this.roomCode = code;
+            this.isHost = false;
+            this.hide();
+            if (res.state) Renderer.render(res.state);
+            document.getElementById('topMsg').textContent = '👀 观战中...';
+            return;
+        }
         this._enterRoom(code, false, '等待房主开始游戏...');
     },
 

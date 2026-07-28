@@ -146,7 +146,12 @@ const Renderer = {
 
         // 自己的手牌（大图）
         const yourHandDiv = document.getElementById('yourHand');
-        if (state.myCards && state.myCards.length === 2) {
+        if (state.isSpectator) {
+            yourHandDiv.innerHTML = '';
+            document.getElementById('yourChips').textContent = '👀 观战中';
+            document.getElementById('yourBet').textContent = '';
+            document.getElementById('handHint').textContent = '';
+        } else if (state.myCards && state.myCards.length === 2) {
             yourHandDiv.innerHTML = this._renderBigCard(state.myCards[0], false) +
                                     this._renderBigCard(state.myCards[1], false);
         } else {
@@ -154,7 +159,9 @@ const Renderer = {
         }
 
         // 自己的筹码
-        document.getElementById('yourChips').textContent = `积分: ${state.myChips}`;
+        if (!state.isSpectator) {
+            document.getElementById('yourChips').textContent = `积分: ${state.myChips}`;
+        }
 
         // 自己当前下注
         const me = state.players.find(p => p.id === state.myPlayerId);
@@ -208,6 +215,18 @@ const Renderer = {
     },
 
     _updateButtons(state) {
+        // 观战者不显示任何操作按钮
+        if (state.isSpectator) {
+            const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise1BB', 'btnRaise2BB',
+                         'btnRaise3BB', 'btnRaise4BB', 'btnRaise5BB', 'btnAllIn', 'btnNext', 'btnLeaveGame'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            document.getElementById('topMsg').textContent = state.message || '👀 观战中...';
+            return;
+        }
+
         const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise1BB', 'btnRaise2BB',
                      'btnRaise3BB', 'btnRaise4BB', 'btnRaise5BB', 'btnAllIn', 'btnNext'];
         ids.forEach(id => {

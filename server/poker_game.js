@@ -1156,6 +1156,63 @@ class PokerGame {
                 }
             }, 3000);
         }
+
+        // 通知观战者（通过 game_manager 的 _spectatorCallback）
+        if (this._onSpectatorBroadcast) {
+            const specState = this.getSpectatorState(0); // 观战者通用状态
+            this._onSpectatorBroadcast(specState);
+        }
+    }
+
+    /** 获取观战者状态（看到所有牌，但不能行动） */
+    getSpectatorState(spectatorId) {
+        const revealAll = this.gameMode === 'training'
+            ? (this.phase === 'hand_over' || this.phase === 'showdown')
+            : (this.phase === 'showdown' || (this.phase === 'hand_over' && this._wasShowdown));
+
+        return {
+            myPlayerId: spectatorId,
+            myCards: [],
+            myChips: 0,
+            isSpectator: true,
+            players: this.players.map(p => ({
+                id: p.id, name: p.name, chips: p.chips,
+                handCards: revealAll ? p.handCards : [],
+                currentBet: p.currentBet,
+                totalBetThisHand: p.totalBetThisHand,
+                isFolded: p.isFolded, isAllIn: p.isAllIn,
+                isHuman: p.isHuman,
+                isDealer: p.isDealer, isSmallBlind: p.isSmallBlind, isBigBlind: p.isBigBlind,
+                isActive: this.isActive(p),
+                isEliminated: this.eliminatedPlayers.includes(p.id),
+                aiType: p.aiProfile && this.gameMode === 'training' ? p.aiProfile.desc : null,
+            })),
+            communityCards: this.communityCards,
+            pot: totalPot(this.players),
+            phase: this.phase,
+            message: this.message,
+            currentPlayerId: this.currentPlayerIndex >= 0 ? this.players[this.currentPlayerIndex].id : null,
+            isMyTurn: false,
+            availableActions: [],
+            handNumber: this.handNumber,
+            winners: this.winners.map(w => ({
+                name: w.player.name,
+                playerId: w.player.id,
+                handName: w.hand ? w.hand.name : null,
+                handCards: w.player.handCards,
+                pot: w.pot,
+            })),
+            lastAction: this.lastAction,
+            currentRoundRaiserId: this.currentRoundRaiserId,
+            isGameOver: this.phase === 'game_over',
+            canRebuy: false,
+            rebuysLeft: this._rebuysLeft,
+            smallBlind: this.smallBlindAmount,
+            bigBlind: this.bigBlindAmount,
+            gameMode: this.gameMode,
+            revealAllCards: revealAll,
+            showAiTypes: this.gameMode === 'training',
+        };
     }
 
     /** 获取游戏结束结果 */
