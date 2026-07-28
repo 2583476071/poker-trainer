@@ -1138,7 +1138,7 @@ class PokerGame {
                     setTimeout(() => {
                         // doAction 内部已处理 notifyState + autoAdvance
                         this.doAction(this.currentPlayerIndex, decision.action, decision.multiplier);
-                    }, 400 + Math.random() * 800);
+                    }, 1500 + Math.random() * 1000);
                 } else {
                     // AI 已All-in或不需要行动 → 标记完成，跳过
                     current.needsToAct = false;

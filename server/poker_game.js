@@ -912,7 +912,7 @@ class PokerGame {
                         if (this.currentPlayerIndex >= 0) {
                             this.doAction(this.currentPlayerIndex, decision.action, decision.multiplier);
                         }
-                    }, 400 + Math.random() * 800);
+                    }, 1500 + Math.random() * 1000);
                 } else {
                     current.needsToAct = false;
                     current.hasActedThisRound = true;
@@ -1053,7 +1053,7 @@ class PokerGame {
                 if (this.currentPlayerIndex === idx) {
                     this.doAction(idx, decision.action, decision.multiplier);
                 }
-            }, 500);
+            }, 1500);
         } else {
             this.notifyState();
         }
