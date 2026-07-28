@@ -333,15 +333,15 @@ body {
 
 #actionButtons button {
     display: inline-block;
-    padding: 10px 24px;
-    font-size: 15px;
+    padding: 14px 32px;
+    font-size: 18px;
     font-weight: bold;
     border: none;
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
     font-family: inherit;
-    min-width: 80px;
+    min-width: 100px;
 }
 
 #actionButtons button:active { transform: scale(0.95); }
@@ -431,13 +431,13 @@ body {
 }
 
 #yourChips {
-    font-size: 16px;
+    font-size: 20px;
     color: #f0c040;
     font-weight: bold;
 }
 
 #yourBet {
-    font-size: 13px;
+    font-size: 16px;
     color: #ff9800;
 }
 
@@ -543,7 +543,7 @@ body {
 /* ===== 你的牌型提示 ===== */
 #handHint {
     color: #aaa;
-    font-size: 12px;
+    font-size: 15px;
     text-align: center;
     margin-top: 2px;
 }
@@ -1005,8 +1005,8 @@ body {
 #actionLog {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
     background: rgba(10,10,26,0.95); border-top: 1px solid #333;
-    max-height: 120px; overflow-y: auto; padding: 6px 16px;
-    font-family: monospace; font-size: 13px; line-height: 1.6;
+    max-height: 150px; overflow-y: auto; padding: 8px 16px;
+    font-family: monospace; font-size: 15px; line-height: 1.8;
 }
 #actionLog .entry { padding: 1px 0; border-bottom: 1px solid #1a1a2e; }
 #actionLog .entry .player { font-weight: bold; color: #4fc3f7; }
