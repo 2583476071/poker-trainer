@@ -66,6 +66,7 @@ const Lobby = {
             // 观战模式
             this.roomCode = code;
             this.isHost = false;
+            document.getElementById('topRoomCode').textContent = '🏠 ' + code;
             this.hide();
             if (res.state) Renderer.render(res.state);
             document.getElementById('topMsg').textContent = '👀 观战中...';
@@ -95,6 +96,7 @@ const Lobby = {
         this.roomCode = code;
         this.isHost = isHost;
         document.getElementById('lobbyRoomCode').textContent = code;
+        document.getElementById('topRoomCode').textContent = '🏠 ' + code;
         document.getElementById('lobbyStatus').textContent = statusMsg;
         document.getElementById('btnStartGame').classList.toggle('hidden', !isHost);
         document.getElementById('btnLeaveRoom').classList.remove('hidden');
@@ -118,6 +120,7 @@ const Lobby = {
         this.roomCode = null;
         this.isHost = false;
         document.getElementById('lobbyRoomCode').textContent = '';
+        document.getElementById('topRoomCode').textContent = '';
         document.getElementById('lobbyStatus').textContent = '';
         document.getElementById('playerList').innerHTML = '';
         document.getElementById('btnStartGame').classList.add('hidden');

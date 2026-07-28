@@ -69,6 +69,7 @@ body {
 #topHand { color: #888; }
 #topBlinds { color: #ff9800; font-weight: bold; }
 #topPot { color: #4fc3f7; font-weight: bold; }
+#topRoomCode { color: #7c4dff; font-weight: bold; font-size: 13px; }
 #topMsg { color: #f0c040; font-weight: bold; flex: 1; text-align: center; }
 
 /* ===== 牌桌主体 ===== */
