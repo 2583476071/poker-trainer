@@ -233,8 +233,8 @@ const Renderer = {
     _updateButtons(state) {
         // 观战者不显示任何操作按钮
         if (state.isSpectator) {
-            const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise1BB', 'btnRaise2BB',
-                         'btnRaise3BB', 'btnRaise4BB', 'btnRaise5BB', 'btnAllIn', 'btnNext', 'btnLeaveGame'];
+            const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise33', 'btnRaise50',
+                         'btnRaise67', 'btnRaise100', 'btnRaise150', 'btnAllIn', 'btnNext', 'btnLeaveGame'];
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
@@ -243,8 +243,8 @@ const Renderer = {
             return;
         }
 
-        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise1BB', 'btnRaise2BB',
-                     'btnRaise3BB', 'btnRaise4BB', 'btnRaise5BB', 'btnAllIn', 'btnNext'];
+        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise33', 'btnRaise50',
+                     'btnRaise67', 'btnRaise100', 'btnRaise150', 'btnAllIn', 'btnNext'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
@@ -274,11 +274,11 @@ const Renderer = {
             btn.classList.remove('hidden');
             btn.textContent = '跟注 ' + (state.toCall || '');
         }
-        if (actions.includes('raise_1bb')) document.getElementById('btnRaise1BB').classList.remove('hidden');
-        if (actions.includes('raise_2bb')) document.getElementById('btnRaise2BB').classList.remove('hidden');
-        if (actions.includes('raise_3bb')) document.getElementById('btnRaise3BB').classList.remove('hidden');
-        if (actions.includes('raise_4bb')) document.getElementById('btnRaise4BB').classList.remove('hidden');
-        if (actions.includes('raise_5bb')) document.getElementById('btnRaise5BB').classList.remove('hidden');
+        if (actions.includes('raise_33')) document.getElementById('btnRaise33').classList.remove('hidden');
+        if (actions.includes('raise_50')) document.getElementById('btnRaise50').classList.remove('hidden');
+        if (actions.includes('raise_67')) document.getElementById('btnRaise67').classList.remove('hidden');
+        if (actions.includes('raise_100')) document.getElementById('btnRaise100').classList.remove('hidden');
+        if (actions.includes('raise_150')) document.getElementById('btnRaise150').classList.remove('hidden');
         if (actions.includes('allin')) document.getElementById('btnAllIn').classList.remove('hidden');
     },
 

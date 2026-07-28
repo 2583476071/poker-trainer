@@ -325,14 +325,21 @@ class PokerGame {
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
-    doRaise(p, bbCount) {
-        // bbCount: 加注的大盲倍数（1-5），AI 也会换算成 BB 数传入
-        const n = Math.max(1, Math.min(5, Math.round(bbCount || 1)));
-        let raiseTo = this.currentBetLevel + n * this.bigBlindAmount;
-        // 上限：不超过当前下注的 3 倍
-        raiseTo = Math.min(raiseTo, Math.floor(this.currentBetLevel * 3));
-        // 下限：不能低于最小加注
-        raiseTo = Math.max(raiseTo, this.currentBetLevel + this.minRaise);
+    doRaise(p, fraction) {
+        // fraction: 底池比例（0.33=1/3底池, 0.5=半池, 1.0=满池），AI 传入 BB 数
+        const pot = totalPot(this.players);
+        let raiseTo;
+        if (fraction <= 5 && fraction >= 0.1) {
+            // 人类：底池比例
+            const raiseBy = Math.floor(pot * fraction);
+            raiseTo = this.currentBetLevel + raiseBy;
+            raiseTo = Math.max(raiseTo, this.currentBetLevel + this.minRaise);
+        } else {
+            // AI：BB 倍数（旧兼容）
+            const n = Math.max(1, Math.min(5, Math.round(fraction || 1)));
+            raiseTo = this.currentBetLevel + n * this.bigBlindAmount;
+        }
+        raiseTo = Math.min(raiseTo, this.currentBetLevel + p.chips + p.currentBet);
         raiseTo = Math.round(raiseTo / 100) * 100;
         const needed = raiseTo - p.currentBet;
         const additional = Math.floor(Math.min(needed, p.chips));
@@ -351,7 +358,7 @@ class PokerGame {
             }
         }
 
-        this.message = `${p.name} 加注到 ${p.currentBet}（+${n}BB）`;
+        this.message = `${p.name} 加注到 ${p.currentBet}`;
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
         if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
     }
@@ -1273,7 +1280,7 @@ class PokerGame {
         if (isMyTurn) {
             const toCall = this.currentBetLevel - viewer.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_1bb', 'raise_2bb', 'raise_3bb', 'raise_4bb', 'raise_5bb', 'allin'];
+                availableActions = ['fold', 'check', 'raise_33', 'raise_50', 'raise_67', 'raise_100', 'raise_150', 'allin'];
             } else if (toCall >= viewer.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
