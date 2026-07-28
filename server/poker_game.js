@@ -703,6 +703,11 @@ class PokerGame {
         return Math.max(1, Math.min(5, Math.round(raiseBy / this.bigBlindAmount)));
     }
 
+    /** 把百分比换算成 BB 数（用于翻后高级策略直接生成 BB 倍数） */
+    _getBBFromPercent(pct) {
+        return this._aiPercentToBB(pct);
+    }
+
     aiDecide(player) {
         const decision = this._aiDecideCore(player);
         const result = this.applyMixedStrategy(decision, player.aiProfile,
@@ -819,6 +824,79 @@ class PokerGame {
             const multiwayPen = activeCount > 2 ? 0.5 : 1;
             if (Math.random() < bluffVsBet * multiwayPen && player.chips > toCall * 3 && bluffRaiseEV > -player.chips * 0.1) {
                 return { action: 'raise', multiplier: this.pickGTOMultiplier(profile, board, 'bluffraise') };
+            }
+        }
+
+        // ===== 5. 翻后高级策略 =====
+
+        // 5a. 飘浮跟注（Float）：翻牌有位置时跟注，转牌被过牌就下注偷
+        const isFlop = this.phase === 'flop';
+        const isTurn = this.phase === 'turn';
+        const floatEligible = isFlop && !isCheckedToMe && position !== 'early' && toCall > 0
+                            && toCall <= player.chips * 0.3 && activeCount <= 3;
+        if (floatEligible && effectiveStrength < 0.45 && effectiveStrength > 0.2) {
+            const floatChance = profile.aggression * 0.45 + (board.scary ? -0.1 : 0.1);
+            if (Math.random() < floatChance && player.chips > toCall * 4) {
+                player._floatPlanned = true;  // 标记，转牌无抵抗就偷
+                return { action: 'call' };
+            }
+        }
+        // 执行飘浮：转牌被过牌 → 下注
+        if (isTurn && player._floatPlanned && isCheckedToMe && !raiseCapped && effectiveStrength < 0.5) {
+            player._floatPlanned = false;
+            if (Math.random() < 0.7) {
+                return { action: 'raise', multiplier: this._getBBFromPercent(1.3) };
+            }
+        }
+
+        // 5b. 探针下注（Probe Bet）：翻前加注者翻牌过牌 → 转牌主动下注
+        if (isTurn && isCheckedToMe && this.communityCards.length === 4 &&
+            this.preflopRaiserIndex !== player.id && !raiseCapped) {
+            const probeChance = (board.scary ? 0.2 : 0.35) * profile.aggression;
+            if (Math.random() < probeChance && player.chips > this.bigBlindAmount * 3) {
+                if (effectiveStrength > 0.25) {
+                    return { action: 'raise', multiplier: this._getBBFromPercent(1.2) };
+                }
+            }
+        }
+
+        // 5c. 过牌-加注（Check-Raise）：面对下注时用强牌或听牌反加
+        if (!isCheckedToMe && !raiseCapped && toCall > 0 && toCall < player.chips * 0.5) {
+            const crStrong = effectiveStrength > 0.65 && Math.random() < 0.4 && this.raiseCountThisRound < 2;
+            const crDraw = drawBonus > 0.06 && effectiveStrength > 0.35 && Math.random() < profile.aggression * 0.5;
+            if ((crStrong || crDraw) && this.raiseCountThisRound < 3) {
+                const crMult = crStrong
+                    ? this._getBBFromPercent(1.5)
+                    : this._getBBFromPercent(1.8);
+                return { action: 'raise', multiplier: crMult };
+            }
+        }
+
+        // 5d. 转牌连续开火（Double Barrel）：翻牌 C-bet 后转牌继续下注
+        if (isTurn && isCheckedToMe && this.preflopRaiserIndex === player.id &&
+            this.communityCards.length === 4 && !raiseCapped && effectiveStrength > 0.3) {
+            const barrelChance = 0.3 + profile.aggression * 0.35 + (board.scary ? 0.1 : -0.05)
+                               + (effectiveStrength > 0.5 ? 0.2 : 0);
+            if (Math.random() < barrelChance) {
+                return { action: 'raise', multiplier: this._getBBFromPercent(1.2) };
+            }
+        }
+
+        // 5e. 适应性剥削：根据对手弃牌率调整
+        if (!raiseCapped && isCheckedToMe && effectiveStrength < 0.45) {
+            if (foldEquity > 0.45 && Math.random() < profile.aggression * 0.4) {
+                // 对手弃牌多 → 多诈唬
+                if (player.chips > this.bigBlindAmount * 4) {
+                    return { action: 'raise', multiplier: this._getBBFromPercent(1.25) };
+                }
+            }
+        }
+        if (!raiseCapped && effectiveStrength > 0.55 && !isCheckedToMe && toCall > 0) {
+            if (oppStats.foldFreq < 0.35 && oppStats.vpip > 0.35) {
+                // 对手不爱弃牌 → 加注价值
+                if (Math.random() < 0.3 && this.raiseCountThisRound < 2) {
+                    return { action: 'raise', multiplier: this._getBBFromPercent(1.3) };
+                }
             }
         }
 
