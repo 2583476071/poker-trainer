@@ -1000,7 +1000,70 @@ class PokerGame {
         const isFlop = this.phase === 'flop';
         const isTurn = this.phase === 'turn';
 
-        // 5a. 飘浮跟注（Float）
+        // 5a. 驴式下注（Donk Bet）
+        const canDonk = isPreflop ? false : (this.communityCards.length === 3 &&
+            this.preflopRaiserIndex !== player.id && isCheckedToMe && !raiseCapped &&
+            this.raiseCountThisRound === 0);
+        if (canDonk) {
+            const donkBoard = board.boardType === 'rainbow_safe' || board.boardType === 'dry_high';
+            const donkChance = donkBoard ? 0.15 : (board.boardType === 'paired' ? 0.12 : 0.05);
+            if (effectiveStrength > 0.4 && Math.random() < donkChance * (1 + profile.aggression)) {
+                return { action: 'raise', multiplier: this._getBBFromPercent(1.15) };
+            }
+        }
+
+        // 5b. 挤压（Squeeze）
+        const squeezeEligible = isPreflop && this.raiseCountThisRound === 1 && activeCount >= 3
+                              && position !== 'early' && player.chips > this.bigBlindAmount * 10;
+        if (squeezeEligible && Math.random() < profile.aggression * 0.3) {
+            const handKey = handFromCards(player.handCards[0], player.handCards[1]);
+            if (preflopRangeDecision(player, position, isCheckedToMe, profile, stacks, board).action !== 'fold'
+                || Math.random() < 0.15) {
+                return { action: 'raise', multiplier: this._getBBFromPercent(1.35) };
+            }
+        }
+
+        // 5c. 薄价值下注（Thin Value）
+        if (!raiseCapped && isCheckedToMe && effectiveStrength > 0.38 && effectiveStrength < 0.58 &&
+            this.phase !== 'river' && activeCount <= 3 && !isTrapping) {
+            const thinChance = profile.aggression * 0.35 + (board.scary ? -0.1 : 0.05);
+            if (Math.random() < thinChance && oppStats.foldFreq < 0.5) {
+                return { action: 'raise', multiplier: this._getBBFromPercent(1.1) };
+            }
+        }
+
+        // 5d. 英雄跟注（Hero Call）
+        if (!isCheckedToMe && toCall > 0 && effectiveStrength < foldThreshold && effectiveStrength > 0.2
+            && this.phase === 'river' && toCall <= player.chips * 0.25) {
+            const heroIndicators = (blockerScore > 0.3 ? 0.3 : 0)
+                + (oppStats.vpip > 0.25 && oppStats.pfr > 0.15 && oppStats.foldFreq < 0.5 ? 0.2 : 0)
+                + (board.scary ? 0.15 : 0);
+            if (Math.random() < heroIndicators * (1 - profile.tightness)) {
+                return { action: 'call' };
+            }
+        }
+
+        // 5e. 河牌超池下注（Overbet）
+        if (isRiver && isCheckedToMe && !raiseCapped && (effectiveStrength > 0.75 || effectiveStrength < 0.2)) {
+            const overbetChance = effectiveStrength > 0.75 ? 0.2 : (profile.bluff * 0.3);
+            if (Math.random() < overbetChance && player.chips > this.bigBlindAmount * 5) {
+                const obSize = effectiveStrength > 0.75
+                    ? this._getBBFromPercent(1.4 + Math.random() * 0.3)
+                    : this._getBBFromPercent(1.5 + Math.random() * 0.5);
+                return { action: 'raise', multiplier: obSize };
+            }
+        }
+
+        // 5f. 延迟 C-bet
+        if (isTurn && isCheckedToMe && this.communityCards.length === 4 &&
+            this.preflopRaiserIndex === player.id && !raiseCapped && effectiveStrength > 0.35) {
+            const delayedChance = 0.15 + profile.aggression * 0.2 + (board.scary ? 0.12 : 0);
+            if (Math.random() < delayedChance) {
+                return { action: 'raise', multiplier: this._getBBFromPercent(1.2) };
+            }
+        }
+
+        // 5g. 飘浮跟注（Float）
         const floatEligible = isFlop && !isCheckedToMe && position !== 'early' && toCall > 0
                             && toCall <= player.chips * 0.3 && activeCount <= 3;
         if (floatEligible && effectiveStrength < 0.45 && effectiveStrength > 0.2) {
