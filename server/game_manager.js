@@ -113,6 +113,7 @@ class GameManager {
             player.connected = false;
         }
         this.playerRooms.delete(socketId);
+        this._checkRoomClosed(info.roomCode);
     }
 
     /** 切换准备状态 */
@@ -274,19 +275,8 @@ class GameManager {
 
         console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
 
-        // 游戏中 → 启动房间保活定时器
-        if (room.phase !== 'lobby' && !room._cleanupTimer) {
-            room._cleanupTimer = setTimeout(() => {
-                const hasConnected = [...room.players.values()].some(p => p.connected);
-                if (!hasConnected) {
-                    console.log(`🧹 房间 ${room.code} 所有玩家离线超时，清理`);
-                    this.rooms.delete(room.code);
-                    for (const [sid, inf] of this.playerRooms) {
-                        if (inf.roomCode === room.code) this.playerRooms.delete(sid);
-                    }
-                }
-            }, 30 * 60 * 1000);
-        }
+        // 检查是否所有玩家都断线了
+        this._checkRoomClosed(info.roomCode);
     }
 
     /** 重连（通过 playerId） */
@@ -345,6 +335,30 @@ class GameManager {
         }
 
         return { reconnected: true, playerId };
+    }
+
+    /** 检查房间是否为空，空则关闭 */
+    _checkRoomClosed(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return;
+        const hasPlayer = [...room.players.values()].some(p => p.connected);
+        if (!hasPlayer) {
+            console.log(`🚫 房间 ${roomCode} 所有玩家已离开，关闭房间`);
+            // 通知观战者
+            if (this._io) {
+                for (const [sid, info] of this.playerRooms) {
+                    if (info.roomCode === roomCode) {
+                        this._io.to(sid).emit('room_closed', {});
+                    }
+                }
+            }
+            // 清理
+            for (const [sid, info] of this.playerRooms) {
+                if (info.roomCode === roomCode) this.playerRooms.delete(sid);
+            }
+            if (room._cleanupTimer) { clearTimeout(room._cleanupTimer); }
+            this.rooms.delete(roomCode);
+        }
     }
 
     /** 设置 Socket.IO 实例（供 network_handler 调用） */

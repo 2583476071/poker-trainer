@@ -277,6 +277,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('topMsg').textContent = '⚠️ 连接断开，尝试自动重连...';
     });
 
+    Network.on('roomClosed', () => {
+        Session.clear();
+        Lobby._resetLobby();
+        Lobby.show();
+        document.getElementById('topMsg').textContent = '房间已关闭，所有玩家已离开';
+    });
+
     Network.on('error', (err) => {
         alert('错误: ' + err.message);
     });

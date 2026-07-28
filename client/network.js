@@ -76,6 +76,11 @@ const Network = {
             if (this.callbacks.gameOver) this.callbacks.gameOver(results);
         });
 
+        this.socket.on('room_closed', () => {
+            Session.clear();
+            if (this.callbacks.roomClosed) this.callbacks.roomClosed();
+        });
+
         this.socket.on('error', (err) => {
             console.error('服务器错误:', err.message);
             if (this.callbacks.error) this.callbacks.error(err);
