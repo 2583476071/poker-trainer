@@ -106,9 +106,11 @@
             <button class="btn-fold" id="btnFold">弃牌</button>
             <button class="btn-check" id="btnCheck">过牌</button>
             <button class="btn-call" id="btnCall">跟注</button>
-            <button class="btn-raise" id="btnRaise100">+100%</button>
-            <button class="btn-raise" id="btnRaise150">+150%</button>
-            <button class="btn-raise" id="btnRaise200">+200%</button>
+            <button class="btn-raise" id="btnRaise1BB">+1BB</button>
+            <button class="btn-raise" id="btnRaise2BB">+2BB</button>
+            <button class="btn-raise" id="btnRaise3BB">+3BB</button>
+            <button class="btn-raise" id="btnRaise4BB">+4BB</button>
+            <button class="btn-raise" id="btnRaise5BB">+5BB</button>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
             <button class="btn-leave hidden" id="btnLeaveGame">🚪 退出房间</button>
@@ -257,9 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('btnFold').addEventListener('click', () => Network.sendAction('fold'));
 document.getElementById('btnCheck').addEventListener('click', () => Network.sendAction('check'));
 document.getElementById('btnCall').addEventListener('click', () => Network.sendAction('call'));
-document.getElementById('btnRaise100').addEventListener('click', () => Network.sendAction('raise', 2.0));
-document.getElementById('btnRaise150').addEventListener('click', () => Network.sendAction('raise', 2.5));
-document.getElementById('btnRaise200').addEventListener('click', () => Network.sendAction('raise', 3.0));
+document.getElementById('btnRaise1BB').addEventListener('click', () => Network.sendAction('raise', 1));
+document.getElementById('btnRaise2BB').addEventListener('click', () => Network.sendAction('raise', 2));
+document.getElementById('btnRaise3BB').addEventListener('click', () => Network.sendAction('raise', 3));
+document.getElementById('btnRaise4BB').addEventListener('click', () => Network.sendAction('raise', 4));
+document.getElementById('btnRaise5BB').addEventListener('click', () => Network.sendAction('raise', 5));
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
 document.getElementById('btnLeaveGame').addEventListener('click', () => {

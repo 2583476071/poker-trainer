@@ -196,8 +196,8 @@ const Renderer = {
     },
 
     _updateButtons(state) {
-        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise100', 'btnRaise150',
-                     'btnRaise200', 'btnAllIn', 'btnNext'];
+        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise1BB', 'btnRaise2BB',
+                     'btnRaise3BB', 'btnRaise4BB', 'btnRaise5BB', 'btnAllIn', 'btnNext'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
@@ -227,9 +227,11 @@ const Renderer = {
             btn.classList.remove('hidden');
             btn.textContent = '跟注 ' + (state.toCall || '');
         }
-        if (actions.includes('raise_100')) document.getElementById('btnRaise100').classList.remove('hidden');
-        if (actions.includes('raise_150')) document.getElementById('btnRaise150').classList.remove('hidden');
-        if (actions.includes('raise_200')) document.getElementById('btnRaise200').classList.remove('hidden');
+        if (actions.includes('raise_1bb')) document.getElementById('btnRaise1BB').classList.remove('hidden');
+        if (actions.includes('raise_2bb')) document.getElementById('btnRaise2BB').classList.remove('hidden');
+        if (actions.includes('raise_3bb')) document.getElementById('btnRaise3BB').classList.remove('hidden');
+        if (actions.includes('raise_4bb')) document.getElementById('btnRaise4BB').classList.remove('hidden');
+        if (actions.includes('raise_5bb')) document.getElementById('btnRaise5BB').classList.remove('hidden');
         if (actions.includes('allin')) document.getElementById('btnAllIn').classList.remove('hidden');
     },
 

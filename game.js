@@ -327,13 +327,15 @@ class PokerGame {
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
-    doRaise(p, multiplier) {
-        // multiplier 是百分比：1.3=+30%, 1.5=+50%, 自定义值
-        const rawTarget = this.currentBetLevel * multiplier;
-        const raiseTo = Math.max(
-            Math.round(rawTarget / 100) * 100,
-            this.currentBetLevel + this.minRaise
-        );
+    doRaise(p, bbCount) {
+        // bbCount: 加注的大盲倍数（1-5），AI 也会换算成 BB 数传入
+        const n = Math.max(1, Math.min(5, Math.round(bbCount || 1)));
+        let raiseTo = this.currentBetLevel + n * this.bigBlindAmount;
+        // 上限：不超过当前下注的 3 倍
+        raiseTo = Math.min(raiseTo, Math.floor(this.currentBetLevel * 3));
+        // 下限：不能低于最小加注
+        raiseTo = Math.max(raiseTo, this.currentBetLevel + this.minRaise);
+        raiseTo = Math.round(raiseTo / 100) * 100;
         const needed = raiseTo - p.currentBet;
         const additional = Math.floor(Math.min(needed, p.chips));
         p.chips -= additional;
@@ -354,8 +356,7 @@ class PokerGame {
             }
         }
 
-        const pct = Math.round((multiplier - 1) * 100);
-        this.message = `${p.name} 加注到 ${p.currentBet}（+${pct}%）`;
+        this.message = `${p.name} 加注到 ${p.currentBet}（+${n}BB）`;
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
 
         // 标记本轮第一个加注者
@@ -776,11 +777,22 @@ class PokerGame {
         return decision;
     }
 
+    /** 把 AI 的百分比倍数换算成大盲倍数 */
+    _aiPercentToBB(pct) {
+        const raiseBy = this.currentBetLevel * (pct - 1);
+        return Math.max(1, Math.min(5, Math.round(raiseBy / this.bigBlindAmount)));
+    }
+
     aiDecide(player) {
         const decision = this._aiDecideCore(player);
-        return this.applyMixedStrategy(decision, player.aiProfile,
+        const result = this.applyMixedStrategy(decision, player.aiProfile,
             player._lastEffectiveStrength || 0.5,
             (this.currentBetLevel - player.currentBet) === 0);
+        // 把百分比 multiplier 换算成 BB 倍数
+        if (result && result.action === 'raise' && result.multiplier) {
+            result.multiplier = this._aiPercentToBB(result.multiplier);
+        }
+        return result;
     }
 
     // ===== 对手建模 =====
@@ -1175,7 +1187,7 @@ class PokerGame {
         if (isHumanTurn) {
             const toCall = this.currentBetLevel - human.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_100', 'raise_150', 'raise_200', 'allin'];
+                availableActions = ['fold', 'check', 'raise_1bb', 'raise_2bb', 'raise_3bb', 'raise_4bb', 'raise_5bb', 'allin'];
             } else if (toCall >= human.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
