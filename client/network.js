@@ -10,7 +10,29 @@ const Network = {
     /** 连接服务器 */
     connect() {
         if (this.socket) return;
-        this.socket = io({ transports: ['websocket'] });
+        this.socket = io({
+            transports: ['websocket', 'polling'],  // 双通道：WebSocket优先，自动降级到轮询
+            reconnection: true,
+            reconnectionAttempts: Infinity,         // 无限重试
+            reconnectionDelay: 1000,                // 首次重连延迟 1s
+            reconnectionDelayMax: 10000,            // 最大重连延迟 10s（指数退避）
+            randomizationFactor: 0.3,               // ±30% 随机抖动，避免重连风暴
+            timeout: 20000,                         // 连接超时 20s
+        });
+
+        // 重连事件日志
+        this.socket.io.on('reconnect_attempt', (attempt) => {
+            console.log(`🔄 重连尝试 #${attempt}...`);
+        });
+        this.socket.io.on('reconnect', () => {
+            console.log('✅ 重连成功');
+        });
+        this.socket.io.on('reconnect_error', (err) => {
+            console.warn('⚠️ 重连失败:', err.message);
+        });
+        this.socket.io.on('reconnect_failed', () => {
+            console.error('❌ 所有重连尝试失败');
+        });
 
         this.socket.on('connect', () => {
             console.log('🔗 已连接:', this.socket.id);
@@ -79,6 +101,11 @@ const Network = {
         this.socket.on('room_closed', () => {
             Session.clear();
             if (this.callbacks.roomClosed) this.callbacks.roomClosed();
+        });
+
+        this.socket.on('connect_error', (err) => {
+            console.error('⚠️ 连接失败:', err.message);
+            if (this.callbacks.connectError) this.callbacks.connectError(err);
         });
 
         this.socket.on('error', (err) => {
@@ -163,34 +190,37 @@ const Network = {
     },
 };
 
-/** SessionStorage 管理 — 掉线/刷新后恢复房间状态 */
+/** SessionStorage → localStorage 管理 — 掉线/刷新/关闭浏览器后恢复房间状态 */
 const Session = {
     _key: 'pt_session',
 
     save(roomCode, playerId, nickname) {
         try {
-            sessionStorage.setItem(this._key, JSON.stringify({
+            localStorage.setItem(this._key, JSON.stringify({
                 roomCode, playerId, nickname,
                 timestamp: Date.now(),
             }));
-        } catch (e) { /* ignore */ }
+            console.log(`💾 Session 已保存: ${roomCode} / ${nickname} (pid=${playerId})`);
+        } catch (e) { console.warn('Session 保存失败:', e.message); }
     },
 
     load() {
         try {
-            const raw = sessionStorage.getItem(this._key);
+            const raw = localStorage.getItem(this._key);
             if (!raw) return null;
             const data = JSON.parse(raw);
-            // 30 分钟内有效
-            if (Date.now() - data.timestamp > 30 * 60 * 1000) {
-                sessionStorage.removeItem(this._key);
+            // 2 小时内有效（原 30 分钟，延长以适应长游戏局）
+            if (Date.now() - data.timestamp > 2 * 60 * 60 * 1000) {
+                localStorage.removeItem(this._key);
+                console.log('🗑️ Session 已过期，已清除');
                 return null;
             }
+            console.log(`📂 Session 已加载: ${data.roomCode} / ${data.nickname}`);
             return data;
-        } catch (e) { return null; }
+        } catch (e) { console.warn('Session 加载失败:', e.message); return null; }
     },
 
     clear() {
-        try { sessionStorage.removeItem(this._key); } catch (e) { /* ignore */ }
+        try { localStorage.removeItem(this._key); console.log('🧹 Session 已清除'); } catch (e) { /* ignore */ }
     },
 };

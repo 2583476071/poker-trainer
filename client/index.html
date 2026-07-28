@@ -284,6 +284,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('topMsg').textContent = '房间已关闭，所有玩家已离开';
     });
 
+    Network.on('connectError', (err) => {
+        document.getElementById('topMsg').textContent = '⚠️ 无法连接到服务器，正在自动重试...';
+        console.warn('连接错误:', err.message);
+    });
+
     Network.on('error', (err) => {
         alert('错误: ' + err.message);
     });

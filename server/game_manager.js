@@ -90,6 +90,7 @@ class GameManager {
         // 观战者 → 直接移除
         const spectator = room.spectators.get(info.playerId);
         if (spectator) {
+            if (spectator._dcTimer) { clearTimeout(spectator._dcTimer); spectator._dcTimer = null; }
             room.spectators.delete(info.playerId);
             this.playerRooms.delete(socketId);
             console.log(`👀 ${spectator.name} 退出观战 (房间 ${info.roomCode})`);
@@ -98,6 +99,8 @@ class GameManager {
 
         const player = room.players.get(info.playerId);
         if (player) {
+            // 清除断线计时器（主动离开不需要宽限期）
+            if (player._dcTimer) { clearTimeout(player._dcTimer); player._dcTimer = null; }
             if (room.phase === 'lobby') {
                 // 大厅中 → 直接删除
                 room.players.delete(info.playerId);
@@ -253,12 +256,27 @@ class GameManager {
         const room = this.rooms.get(info.roomCode);
         if (!room) return;
 
-        // 观战者断线 → 直接清理
+        // 观战者断线 → 标记断线，30s 宽限期后清理
         const spectator = room.spectators.get(info.playerId);
         if (spectator) {
-            room.spectators.delete(info.playerId);
-            this.playerRooms.delete(socketId);
-            console.log(`👀 ${spectator.name} 观战者断开 (房间 ${info.roomCode})`);
+            spectator.connected = false;
+            spectator._disconnectTime = Date.now();
+            console.log(`👀 ${spectator.name} 观战者断开 (房间 ${info.roomCode})，30s 宽限期`);
+            // 30s 后检查是否重连
+            spectator._dcTimer = setTimeout(() => {
+                const freshRoom = this.rooms.get(info.roomCode);
+                if (!freshRoom) return;
+                const freshSpec = freshRoom.spectators.get(info.playerId);
+                if (freshSpec && !freshSpec.connected) {
+                    freshRoom.spectators.delete(info.playerId);
+                    for (const [sid, pinfo] of this.playerRooms) {
+                        if (pinfo.playerId === info.playerId) {
+                            this.playerRooms.delete(sid); break;
+                        }
+                    }
+                    console.log(`👀 ${spectator.name} 观战者超时未重连，已清理 (房间 ${info.roomCode})`);
+                }
+            }, 30000);
             return;
         }
 
@@ -266,6 +284,7 @@ class GameManager {
         if (!player) return;
 
         player.connected = false;
+        player._disconnectTime = Date.now();
 
         // 大厅中房主断线 → 转移房主给下一个在线玩家
         if (room.phase === 'lobby' && info.playerId === room.hostId) {
@@ -275,7 +294,26 @@ class GameManager {
 
         console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
 
-        // 检查是否所有玩家都断线了
+        // 大厅玩家：60s 宽限期后才清理
+        if (room.phase === 'lobby') {
+            player._dcTimer = setTimeout(() => {
+                const freshRoom = this.rooms.get(info.roomCode);
+                if (!freshRoom) return;
+                const freshPlayer = freshRoom.players.get(info.playerId);
+                if (freshPlayer && !freshPlayer.connected) {
+                    freshRoom.players.delete(info.playerId);
+                    for (const [sid, pinfo] of this.playerRooms) {
+                        if (pinfo.playerId === info.playerId) {
+                            this.playerRooms.delete(sid); break;
+                        }
+                    }
+                    console.log(`🚫 ${player.name} 超时未重连，移出房间 (房间 ${info.roomCode})`);
+                    this._checkRoomClosed(info.roomCode);
+                }
+            }, 60000);
+        }
+
+        // 检查房间是否需要延迟关闭
         this._checkRoomClosed(info.roomCode);
     }
 
@@ -308,6 +346,13 @@ class GameManager {
     }
 
     _doReconnect(room, player, socketId, roomCode, playerId) {
+        // 清除断线计时器
+        if (player._dcTimer) {
+            clearTimeout(player._dcTimer);
+            player._dcTimer = null;
+        }
+        player._disconnectTime = null;
+
         // 清除房间过期定时器
         if (room._cleanupTimer) {
             clearTimeout(room._cleanupTimer);
@@ -337,27 +382,45 @@ class GameManager {
         return { reconnected: true, playerId };
     }
 
-    /** 检查房间是否为空，空则关闭 */
+    /** 检查房间是否为空，空则延迟关闭（给断线玩家重连机会） */
     _checkRoomClosed(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return;
         const hasPlayer = [...room.players.values()].some(p => p.connected);
         if (!hasPlayer) {
-            console.log(`🚫 房间 ${roomCode} 所有玩家已离开，关闭房间`);
-            // 通知观战者
-            if (this._io) {
-                for (const [sid, info] of this.playerRooms) {
-                    if (info.roomCode === roomCode) {
-                        this._io.to(sid).emit('room_closed', {});
+            // 如果已经有定时器在跑，不重复设置
+            if (room._cleanupTimer) return;
+            console.log(`⏳ 房间 ${roomCode} 所有玩家断开，60s 后关闭...`);
+            room._cleanupTimer = setTimeout(() => {
+                const freshRoom = this.rooms.get(roomCode);
+                if (!freshRoom) return;
+                const stillEmpty = ![...freshRoom.players.values()].some(p => p.connected);
+                if (stillEmpty) {
+                    console.log(`🚫 房间 ${roomCode} 超时无重连，关闭房间`);
+                    if (this._io) {
+                        for (const [sid, info] of this.playerRooms) {
+                            if (info.roomCode === roomCode) {
+                                this._io.to(sid).emit('room_closed', {});
+                            }
+                        }
                     }
+                    for (const [sid, info] of this.playerRooms) {
+                        if (info.roomCode === roomCode) this.playerRooms.delete(sid);
+                    }
+                    // 清除所有待处理的断线计时器
+                    for (const [, p] of freshRoom.players) {
+                        if (p._dcTimer) { clearTimeout(p._dcTimer); p._dcTimer = null; }
+                    }
+                    for (const [, s] of freshRoom.spectators) {
+                        if (s._dcTimer) { clearTimeout(s._dcTimer); s._dcTimer = null; }
+                    }
+                    freshRoom._cleanupTimer = null;
+                    this.rooms.delete(roomCode);
+                } else {
+                    room._cleanupTimer = null;
+                    console.log(`✅ 房间 ${roomCode} 有玩家重连，取消关闭`);
                 }
-            }
-            // 清理
-            for (const [sid, info] of this.playerRooms) {
-                if (info.roomCode === roomCode) this.playerRooms.delete(sid);
-            }
-            if (room._cleanupTimer) { clearTimeout(room._cleanupTimer); }
-            this.rooms.delete(roomCode);
+            }, 60000);
         }
     }
 

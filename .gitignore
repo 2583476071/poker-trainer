@@ -1,3 +1,7 @@
 server/node_modules/
 node_modules/
 package-lock.json
+阿里云.txt
+*.local.txt
+.env
+.env.local

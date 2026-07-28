@@ -80,8 +80,8 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 ExecStart=/usr/bin/node ${APP_DIR}/server/index.js
-Restart=on-failure
-RestartSec=3
+Restart=always
+RestartSec=5
 Environment=PORT=${PORT}
 Environment=NODE_ENV=production
 
