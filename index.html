@@ -126,6 +126,7 @@
 <script src="shared/gto_ranges.js"></script>
 <script src="shared/player_factory.js"></script>
 <script src="shared/board_analyzer.js"></script>
+<script src="client/sound.js"></script>
 <script src="game.js?v=2"></script>
 <script>
 // ==================== UI 控制器 ====================
@@ -467,6 +468,7 @@ function updateActionLog(state) {
     if (logEntries.includes(key)) return;
     logEntries.push(key);
     if (logEntries.length > 50) logEntries.shift();
+    if (typeof Sound !== 'undefined') Sound.play(a.action);
 
     let cls = 'action-' + a.action;
     let icon = { fold:'✗', check:'✓', call:'→', raise:'↑', allin:'⚡' }[a.action] || '';

@@ -315,6 +315,8 @@ const Renderer = {
         const key = `${a.playerId}-${a.action}-${state.handNumber}-${state.phase}`;
         if (this._logEntries.includes(key)) return;
         this._logEntries.push(key);
+        // 播放音效
+        if (typeof Sound !== 'undefined') Sound.play(a.action);
         if (this._logEntries.length > 50) this._logEntries.shift();
 
         const log = document.getElementById('actionLog');
