@@ -18,9 +18,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: { origin: '*', methods: ['GET', 'POST'] },
-    pingTimeout: 30000,     // 30s 内未收到 pong → 判定断开（从 60s 缩短）
-    pingInterval: 10000,    // 每 10s 发一次 ping（从 25s 缩短，低于常见 NAT 超时）
-    connectTimeout: 15000,  // 客户端连接超时 15s
+    transports: ['polling'],      // 仅轮询，禁用 WebSocket（避免升级失败断线）
+    pingTimeout: 60000,           // 60s 宽容超时
+    pingInterval: 15000,          // 每 15s 心跳
+    connectTimeout: 20000,
+    allowUpgrades: false,         // 禁止升级到 WebSocket
 });
 
 // 静态文件托管

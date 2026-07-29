@@ -12,14 +12,14 @@ const Network = {
     connect() {
         if (this.socket) return;
         this.socket = io({
-            transports: ['polling', 'websocket'],  // 轮询优先，更稳定；自动升级到 WebSocket
+            transports: ['polling'],        // 仅轮询，不用 WebSocket（最稳定）
             reconnection: true,
             reconnectionAttempts: Infinity,
             reconnectionDelay: 500,
             reconnectionDelayMax: 5000,
             randomizationFactor: 0.5,
-            timeout: 10000,
-            upgrade: true,
+            timeout: 15000,
+            upgrade: false,
         });
 
         // ---- Socket.IO 底层重连事件 ----
