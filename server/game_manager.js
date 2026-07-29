@@ -327,10 +327,13 @@ class GameManager {
                     this._checkRoomClosed(info.roomCode);
                 }
             }, 60000);
+        } else {
+            // 游戏中玩家：60s 宽限期后才关闭房间
+            player._dcTimer = setTimeout(() => {
+                this._checkRoomClosed(info.roomCode);
+            }, 60000);
         }
-
-        // 检查房间是否需要延迟关闭
-        this._checkRoomClosed(info.roomCode);
+        // 不要立即关闭房间，给 60s 重连宽限期
     }
 
     /** 重连（通过 playerId） */
