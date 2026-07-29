@@ -226,6 +226,7 @@ const Network = {
 /** localStorage 管理 — 掉线/刷新/关闭浏览器后恢复房间状态 */
 const Session = {
     _key: 'pt_session',
+    _nickKey: 'pt_nickname',
 
     save(roomCode, playerId, nickname) {
         try {
@@ -233,6 +234,7 @@ const Session = {
                 roomCode, playerId, nickname,
                 timestamp: Date.now(),
             }));
+            if (nickname) localStorage.setItem(this._nickKey, nickname);
         } catch (e) {}
     },
 
@@ -241,13 +243,16 @@ const Session = {
             const raw = localStorage.getItem(this._key);
             if (!raw) return null;
             const data = JSON.parse(raw);
-            // 30 分钟内有效
             if (Date.now() - data.timestamp > 30 * 60 * 1000) {
                 localStorage.removeItem(this._key);
                 return null;
             }
             return data;
         } catch (e) { return null; }
+    },
+
+    getNickname() {
+        try { return localStorage.getItem(this._nickKey) || ''; } catch (e) { return ''; }
     },
 
     clear() {

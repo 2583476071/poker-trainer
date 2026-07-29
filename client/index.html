@@ -74,7 +74,7 @@
     <!-- 大厅 -->
     <div id="lobbyPanel">
         <h2>🃏 联机对战</h2>
-        <input type="text" id="inputNickname" placeholder="你的昵称" maxlength="8" value="玩家">
+        <input type="text" id="inputNickname" placeholder="你的昵称" maxlength="8">
         <div id="createJoinRow">
             <button class="primary" id="btnCreateRoom">创建房间</button>
             <br>
@@ -220,6 +220,11 @@ function stopTurnTimer() {
 
 // ===== 主入口 =====
 document.addEventListener('DOMContentLoaded', () => {
+    // 恢复昵称
+    const savedNick = Session.getNickname();
+    if (savedNick) document.getElementById('inputNickname').value = savedNick;
+    else document.getElementById('inputNickname').value = '玩家';
+
     Lobby.init();
     Renderer.initSeats();
     Network.connect();
