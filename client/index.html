@@ -132,6 +132,7 @@
             <button class="btn-raise" id="btnRaise50">半池</button>
             <button class="btn-raise" id="btnRaise67">2/3池</button>
             <button class="btn-raise" id="btnRaise100">满池</button>
+            <input type="number" id="inputRaise" placeholder="自定义" style="width:80px;padding:6px 8px;font-size:15px;border-radius:6px;border:1px solid #e65100;background:#1a1a2e;color:#fff;text-align:center;" step="100" min="0">
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
             <button class="btn-leave hidden" id="btnLeaveGame">🚪 退出房间</button>
@@ -298,6 +299,13 @@ document.getElementById('btnRaise33').addEventListener('click', () => Network.se
 document.getElementById('btnRaise50').addEventListener('click', () => Network.sendAction('raise', 0.5));
 document.getElementById('btnRaise67').addEventListener('click', () => Network.sendAction('raise', 0.67));
 document.getElementById('btnRaise100').addEventListener('click', () => Network.sendAction('raise', 1.0));
+// 自定义加注：输入金额回车或失焦时触发
+function submitCustomRaise() {
+    const val = parseInt(document.getElementById('inputRaise').value);
+    if (val > 0) Network.sendAction('custom_raise', val);
+    document.getElementById('inputRaise').value = '';
+}
+document.getElementById('inputRaise').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCustomRaise(); });
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
 // 接管按钮（动态生成，用事件委托）

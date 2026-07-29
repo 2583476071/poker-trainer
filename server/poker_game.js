@@ -325,6 +325,40 @@ class PokerGame {
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
+    doCustomRaise(p, raiseTo) {
+        raiseTo = Math.round(raiseTo / 100) * 100;
+        const needed = raiseTo - p.currentBet;
+        const additional = Math.floor(Math.min(needed, p.chips));
+        p.chips -= additional;
+        p.currentBet += additional;
+        p.totalBetThisHand += additional;
+        this.currentBetLevel = p.currentBet;
+        if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
+        if (p.chips <= 0) p.isAllIn = true;
+        this.raiseCountThisRound++;
+
+        for (const other of this.players) {
+            if (other.id !== p.id && this.isActive(other) && !other.isAllIn) {
+                other.needsToAct = true;
+                other.hasActedThisRound = false;
+            }
+        }
+
+        p.needsToAct = false;
+        p.hasActedThisRound = true;
+        this.message = `${p.name} 加注到 ${p.currentBet}`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
+        if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
+
+        if (this.isBettingRoundOver()) {
+            this.advancePhase();
+        } else {
+            this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
+            this.notifyState();
+            this.autoAdvance();
+        }
+    }
+
     doRaise(p, fraction) {
         // fraction: 0=最小加注, 0.33=1/3池, 0.5=半池, 1.0=满池; AI 传 BB 数
         const pot = totalPot(this.players);
@@ -1222,6 +1256,14 @@ class PokerGame {
 
         // 清除超时
         if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
+
+        // 自定义加注：multiplier 是绝对加注到金额
+        if (action === 'custom_raise') {
+            const amount = Math.round(multiplier / 100) * 100;
+            if (amount < this.currentBetLevel + this.minRaise || amount > p.chips + p.currentBet) return false;
+            this.doCustomRaise(p, amount);
+            return true;
+        }
 
         return this.doAction(idx, action, multiplier);
     }

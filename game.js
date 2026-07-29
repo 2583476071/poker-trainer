@@ -1450,8 +1450,45 @@ class PokerGame {
     humanAction(action, multiplier) {
         if (this.currentPlayerIndex !== 0) return;
         if (!this.players[0].needsToAct) return;
+        if (action === 'custom_raise') {
+            const amount = Math.round(multiplier / 100) * 100;
+            if (amount < this.currentBetLevel + this.minRaise || amount > this.players[0].chips + this.players[0].currentBet) return;
+            this.doCustomRaise(this.players[0], amount);
+            return;
+        }
         this.doAction(0, action, multiplier);
         // doAction 内部已调用 notifyState + autoAdvance，这里不重复调用
+    }
+
+    doCustomRaise(p, raiseTo) {
+        raiseTo = Math.round(raiseTo / 100) * 100;
+        const needed = raiseTo - p.currentBet;
+        const additional = Math.floor(Math.min(needed, p.chips));
+        p.chips -= additional;
+        p.currentBet += additional;
+        p.totalBetThisHand += additional;
+        this.currentBetLevel = p.currentBet;
+        if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
+        if (p.chips <= 0) p.isAllIn = true;
+        this.raiseCountThisRound++;
+        for (const other of this.players) {
+            if (other.id !== p.id && this.isActive(other) && !other.isAllIn) {
+                other.needsToAct = true;
+                other.hasActedThisRound = false;
+            }
+        }
+        p.needsToAct = false;
+        p.hasActedThisRound = true;
+        this.message = `${p.name} 加注到 ${p.currentBet}`;
+        this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
+        if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
+        if (this.isBettingRoundOver()) {
+            this.advancePhase();
+        } else {
+            this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
+            this.notifyState();
+            this.autoAdvance();
+        }
     }
 
     /** 开始下一局 */

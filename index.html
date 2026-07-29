@@ -61,6 +61,7 @@
             <button class="btn-raise" id="btnRaise50">半池</button>
             <button class="btn-raise" id="btnRaise67">2/3池</button>
             <button class="btn-raise" id="btnRaise100">满池</button>
+            <input type="number" id="inputRaise" placeholder="自定义" style="width:80px;padding:6px 8px;font-size:15px;border-radius:6px;border:1px solid #e65100;background:#1a1a2e;color:#fff;text-align:center;" step="100" min="0">
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
         </div>
@@ -546,6 +547,12 @@ document.getElementById('btnRaise33').addEventListener('click', () => game.human
 document.getElementById('btnRaise50').addEventListener('click', () => game.humanAction('raise', 0.5));
 document.getElementById('btnRaise67').addEventListener('click', () => game.humanAction('raise', 0.67));
 document.getElementById('btnRaise100').addEventListener('click', () => game.humanAction('raise', 1.0));
+function submitCustomRaise() {
+    const val = parseInt(document.getElementById('inputRaise').value);
+    if (val > 0) game.humanAction('custom_raise', val);
+    document.getElementById('inputRaise').value = '';
+}
+document.getElementById('inputRaise').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCustomRaise(); });
 document.getElementById('btnAllIn').addEventListener('click', () => game.humanAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => {
     logEntries.length = 0;
