@@ -95,6 +95,16 @@ function setupNetworkHandlers(io, gameManager) {
             }
         });
 
+        socket.on('join_seat', ({ seatIndex }, callback) => {
+            const info = gameManager.getPlayerInfo(socket.id);
+            if (!info) { callback?.({ error: '不在房间中' }); return; }
+            const result = gameManager.joinEmptySeat(socket.id, info.roomCode, seatIndex);
+            if (result.error) { callback?.(result); return; }
+            socket.join(info.roomCode);  // 确保 socket 在房间中
+            callback?.({ ok: true, state: result.state, playerId: result.playerId });
+            _broadcastRoomState(gameManager, info.roomCode);
+        });
+
         socket.on('rebuy', (_, callback) => {
             const info = gameManager.getPlayerInfo(socket.id);
             if (!info) { callback?.({ error: '不在房间中' }); return; }

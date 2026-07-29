@@ -41,8 +41,8 @@ Type=simple
 User=poker
 WorkingDirectory=/opt/poker-trainer
 ExecStart=/usr/bin/node /opt/poker-trainer/server/index.js
-Restart=on-failure
-RestartSec=3
+Restart=always
+RestartSec=5
 Environment=PORT=3000
 Environment=NODE_ENV=production
 

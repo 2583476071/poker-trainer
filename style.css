@@ -220,6 +220,27 @@ body {
 .player-info.folded  { opacity: 0.4; }
 .player-info.eliminated { opacity: 0.2; }
 
+/* ===== 空位样式 ===== */
+.player-seat.empty-seat .player-info.empty-info {
+    opacity: 0.25;
+    border: 2px dashed rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.15);
+}
+.player-seat.empty-seat .player-info.empty-info .player-name {
+    font-style: italic;
+}
+
+/* 加入空位按钮 */
+.join-empty-btn {
+    background: #1a3a1a !important;
+    border-color: #2ecc71 !important;
+    color: #2ecc71 !important;
+}
+.join-empty-btn:hover {
+    background: #2a5a2a !important;
+    color: #fff !important;
+}
+
 .player-name {
     font-size: 12px;
     font-weight: bold;

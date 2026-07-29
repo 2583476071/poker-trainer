@@ -103,11 +103,15 @@ const Lobby = {
         document.getElementById('lobbyStatus').textContent = statusMsg;
         document.getElementById('btnStartGame').classList.toggle('hidden', !isHost);
         document.getElementById('btnLeaveRoom').classList.remove('hidden');
+        document.getElementById('configRow').classList.toggle('hidden', !isHost);
         document.getElementById('createJoinRow').classList.add('hidden');
         document.getElementById('rejoinRow').classList.add('hidden');
     },
 
     async startGame() {
+        const aiCount = parseInt(document.getElementById('inputAICount').value);
+        // 先同步AI配置
+        await Network.updateConfig({ aiCount });
         const res = await Network.startGame();
         if (res.error) { alert(res.error); return; }
         document.getElementById('lobbyStatus').textContent = '游戏开始！';
@@ -128,6 +132,7 @@ const Lobby = {
         document.getElementById('playerList').innerHTML = '';
         document.getElementById('btnStartGame').classList.add('hidden');
         document.getElementById('btnLeaveRoom').classList.add('hidden');
+        document.getElementById('configRow').classList.add('hidden');
         document.getElementById('createJoinRow').classList.remove('hidden');
         document.getElementById('rejoinRow').classList.add('hidden');
     },

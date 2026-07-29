@@ -18,8 +18,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: { origin: '*', methods: ['GET', 'POST'] },
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    pingTimeout: 30000,     // 30s 内未收到 pong → 判定断开（从 60s 缩短）
+    pingInterval: 10000,    // 每 10s 发一次 ping（从 25s 缩短，低于常见 NAT 超时）
+    connectTimeout: 15000,  // 客户端连接超时 15s
 });
 
 // 静态文件托管

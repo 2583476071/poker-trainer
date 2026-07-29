@@ -90,6 +90,7 @@ class GameManager {
         // 观战者 → 直接移除
         const spectator = room.spectators.get(info.playerId);
         if (spectator) {
+            if (spectator._dcTimer) { clearTimeout(spectator._dcTimer); spectator._dcTimer = null; }
             room.spectators.delete(info.playerId);
             this.playerRooms.delete(socketId);
             console.log(`👀 ${spectator.name} 退出观战 (房间 ${info.roomCode})`);
@@ -98,6 +99,8 @@ class GameManager {
 
         const player = room.players.get(info.playerId);
         if (player) {
+            // 清除断线计时器（主动离开不需要宽限期）
+            if (player._dcTimer) { clearTimeout(player._dcTimer); player._dcTimer = null; }
             if (room.phase === 'lobby') {
                 // 大厅中 → 直接删除
                 room.players.delete(info.playerId);
@@ -151,13 +154,20 @@ class GameManager {
         const humans = room.getConnectedPlayers();
         if (humans.length < 1) return { error: '至少需要1名玩家' };
 
-        // 分配座位：人类与 AI 随机混排
+        // 计算AI数量：房主可选择 0~N 个AI
+        const aiCount = Math.max(0, parseInt(room.config.aiCount) || 0);
+        const maxAI = 9 - humans.length;
+        const actualAI = Math.min(aiCount, maxAI);
+        const totalPlayers = humans.length + actualAI;
+
+        // 分配座位：人类与 AI 随机混排，剩余座位为空
         const seats = [];
         const shuffledAI = shuffle([...AI_PERSONALITIES]);
 
-        // 随机抽座位给人类
-        const allSeats = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-        const humanSeats = new Set(allSeats.slice(0, humans.length));
+        // 随机抽座位给有人的位置
+        const occupiedSeats = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]).slice(0, totalPlayers);
+        const humanSeats = new Set(occupiedSeats.slice(0, humans.length));
+        const aiSeats = new Set(occupiedSeats.slice(humans.length));
 
         let humanIdx = 0;
         let aiIdx = 0;
@@ -171,7 +181,7 @@ class GameManager {
                     isHuman: true,
                     aiProfile: null,
                 });
-            } else {
+            } else if (aiSeats.has(seat)) {
                 const aiProfile = room.config.gameMode === 'competitive'
                     ? shuffledAI[Math.floor(Math.random() * shuffledAI.length)]
                     : shuffledAI[aiIdx % shuffledAI.length];
@@ -184,6 +194,7 @@ class GameManager {
                 });
                 aiIdx++;
             }
+            // else: 空位，不加入 seats（PokerGame 内部 this.players 不包含该座位）
         }
 
         // 创建 PokerGame
@@ -195,6 +206,14 @@ class GameManager {
             gameMode: room.config.gameMode,
             turnTimeout: room.config.turnTimeout,
         });
+
+        // 存储空位信息供观战者加入时验证
+        room._emptySeats = new Set();
+        for (let seat = 0; seat < 9; seat++) {
+            if (!humanSeats.has(seat) && !aiSeats.has(seat)) {
+                room._emptySeats.add(seat);
+            }
+        }
 
         // 设置广播回调（玩家）
         game.onBroadcast = (playerId, state) => {
@@ -230,7 +249,7 @@ class GameManager {
 
         room.game = game;
         room.phase = 'playing';
-        console.log(`🎮 房间 ${roomCode} 游戏开始，${humans.length} 人类 + ${9 - humans.length} AI`);
+        console.log(`🎮 房间 ${roomCode} 游戏开始，${humans.length} 人类 + ${actualAI} AI，${9 - totalPlayers} 空位`);
         return { ok: true };
     }
 
@@ -253,12 +272,27 @@ class GameManager {
         const room = this.rooms.get(info.roomCode);
         if (!room) return;
 
-        // 观战者断线 → 直接清理
+        // 观战者断线 → 标记断线，30s 宽限期后清理
         const spectator = room.spectators.get(info.playerId);
         if (spectator) {
-            room.spectators.delete(info.playerId);
-            this.playerRooms.delete(socketId);
-            console.log(`👀 ${spectator.name} 观战者断开 (房间 ${info.roomCode})`);
+            spectator.connected = false;
+            spectator._disconnectTime = Date.now();
+            console.log(`👀 ${spectator.name} 观战者断开 (房间 ${info.roomCode})，30s 宽限期`);
+            // 30s 后检查是否重连
+            spectator._dcTimer = setTimeout(() => {
+                const freshRoom = this.rooms.get(info.roomCode);
+                if (!freshRoom) return;
+                const freshSpec = freshRoom.spectators.get(info.playerId);
+                if (freshSpec && !freshSpec.connected) {
+                    freshRoom.spectators.delete(info.playerId);
+                    for (const [sid, pinfo] of this.playerRooms) {
+                        if (pinfo.playerId === info.playerId) {
+                            this.playerRooms.delete(sid); break;
+                        }
+                    }
+                    console.log(`👀 ${spectator.name} 观战者超时未重连，已清理 (房间 ${info.roomCode})`);
+                }
+            }, 30000);
             return;
         }
 
@@ -266,6 +300,7 @@ class GameManager {
         if (!player) return;
 
         player.connected = false;
+        player._disconnectTime = Date.now();
 
         // 大厅中房主断线 → 转移房主给下一个在线玩家
         if (room.phase === 'lobby' && info.playerId === room.hostId) {
@@ -275,7 +310,26 @@ class GameManager {
 
         console.log(`🔌 ${player.name} 断线 (房间 ${info.roomCode})`);
 
-        // 检查是否所有玩家都断线了
+        // 大厅玩家：60s 宽限期后才清理
+        if (room.phase === 'lobby') {
+            player._dcTimer = setTimeout(() => {
+                const freshRoom = this.rooms.get(info.roomCode);
+                if (!freshRoom) return;
+                const freshPlayer = freshRoom.players.get(info.playerId);
+                if (freshPlayer && !freshPlayer.connected) {
+                    freshRoom.players.delete(info.playerId);
+                    for (const [sid, pinfo] of this.playerRooms) {
+                        if (pinfo.playerId === info.playerId) {
+                            this.playerRooms.delete(sid); break;
+                        }
+                    }
+                    console.log(`🚫 ${player.name} 超时未重连，移出房间 (房间 ${info.roomCode})`);
+                    this._checkRoomClosed(info.roomCode);
+                }
+            }, 60000);
+        }
+
+        // 检查房间是否需要延迟关闭
         this._checkRoomClosed(info.roomCode);
     }
 
@@ -307,7 +361,49 @@ class GameManager {
         return this._doReconnect(room, found.player, socketId, roomCode, found.playerId);
     }
 
+    /** 观战者加入空位（场上无AI时可入座） */
+    joinEmptySeat(socketId, roomCode, seatIndex) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: '房间不存在' };
+        if (!room.game || room.phase !== 'playing') return { error: '游戏未开始' };
+
+        // 验证观战者身份
+        const spectator = room.spectators.get(this.playerRooms.get(socketId)?.playerId);
+        if (!spectator) return { error: '你不是观战者' };
+
+        // 验证座位为空
+        if (!room._emptySeats || !room._emptySeats.has(seatIndex)) {
+            return { error: '该座位不可加入（非空位或已被占用）' };
+        }
+
+        const playerId = this.playerRooms.get(socketId).playerId;
+        const specName = spectator.name;
+
+        // 调用游戏逻辑加入空位
+        const result = room.game.joinEmptySeat(playerId, specName, seatIndex);
+        if (result.error) return result;
+
+        // 从空位集中移除
+        room._emptySeats.delete(seatIndex);
+
+        // 从观战者移到玩家列表
+        room.spectators.delete(playerId);
+        room.players.set(playerId, { id: playerId, name: specName, socketId, ready: true, connected: true });
+
+        // 返回个性化游戏状态
+        const state = room.game.getState(playerId);
+        console.log(`🪑 ${specName} 加入空位 ${seatIndex} (房间 ${roomCode})`);
+        return { ok: true, state, playerId };
+    }
+
     _doReconnect(room, player, socketId, roomCode, playerId) {
+        // 清除断线计时器
+        if (player._dcTimer) {
+            clearTimeout(player._dcTimer);
+            player._dcTimer = null;
+        }
+        player._disconnectTime = null;
+
         // 清除房间过期定时器
         if (room._cleanupTimer) {
             clearTimeout(room._cleanupTimer);
@@ -337,27 +433,45 @@ class GameManager {
         return { reconnected: true, playerId };
     }
 
-    /** 检查房间是否为空，空则关闭 */
+    /** 检查房间是否为空，空则延迟关闭（给断线玩家重连机会） */
     _checkRoomClosed(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return;
         const hasPlayer = [...room.players.values()].some(p => p.connected);
         if (!hasPlayer) {
-            console.log(`🚫 房间 ${roomCode} 所有玩家已离开，关闭房间`);
-            // 通知观战者
-            if (this._io) {
-                for (const [sid, info] of this.playerRooms) {
-                    if (info.roomCode === roomCode) {
-                        this._io.to(sid).emit('room_closed', {});
+            // 如果已经有定时器在跑，不重复设置
+            if (room._cleanupTimer) return;
+            console.log(`⏳ 房间 ${roomCode} 所有玩家断开，60s 后关闭...`);
+            room._cleanupTimer = setTimeout(() => {
+                const freshRoom = this.rooms.get(roomCode);
+                if (!freshRoom) return;
+                const stillEmpty = ![...freshRoom.players.values()].some(p => p.connected);
+                if (stillEmpty) {
+                    console.log(`🚫 房间 ${roomCode} 超时无重连，关闭房间`);
+                    if (this._io) {
+                        for (const [sid, info] of this.playerRooms) {
+                            if (info.roomCode === roomCode) {
+                                this._io.to(sid).emit('room_closed', {});
+                            }
+                        }
                     }
+                    for (const [sid, info] of this.playerRooms) {
+                        if (info.roomCode === roomCode) this.playerRooms.delete(sid);
+                    }
+                    // 清除所有待处理的断线计时器
+                    for (const [, p] of freshRoom.players) {
+                        if (p._dcTimer) { clearTimeout(p._dcTimer); p._dcTimer = null; }
+                    }
+                    for (const [, s] of freshRoom.spectators) {
+                        if (s._dcTimer) { clearTimeout(s._dcTimer); s._dcTimer = null; }
+                    }
+                    freshRoom._cleanupTimer = null;
+                    this.rooms.delete(roomCode);
+                } else {
+                    room._cleanupTimer = null;
+                    console.log(`✅ 房间 ${roomCode} 有玩家重连，取消关闭`);
                 }
-            }
-            // 清理
-            for (const [sid, info] of this.playerRooms) {
-                if (info.roomCode === roomCode) this.playerRooms.delete(sid);
-            }
-            if (room._cleanupTimer) { clearTimeout(room._cleanupTimer); }
-            this.rooms.delete(roomCode);
+            }, 60000);
         }
     }
 
