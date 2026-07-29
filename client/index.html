@@ -285,8 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 断线
-    Network.on('disconnect', () => {
-        document.getElementById('topMsg').textContent = '⚠️ 连接断开，尝试自动重连...';
+    Network.on('disconnect', (reason) => {
+        document.getElementById('topMsg').textContent = '⚠️ 连接断开，自动重连中...';
+    });
+
+    // 重连中
+    Network.on('reconnecting', (attempt) => {
+        document.getElementById('topMsg').textContent = `⚠️ 正在重连... (第${attempt}次)`;
     });
 
     Network.on('roomClosed', () => {

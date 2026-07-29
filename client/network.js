@@ -1,84 +1,67 @@
 /* ================================================================
- * client/network.js — Socket.IO 客户端封装
+ * client/network.js — Socket.IO 客户端封装（高可用版）
  * ================================================================ */
 
 const Network = {
     socket: null,
     myPlayerId: null,
     callbacks: {},
+    _reconnecting: false,
 
     /** 连接服务器 */
     connect() {
         if (this.socket) return;
         this.socket = io({
-            transports: ['websocket', 'polling'],  // 双通道：WebSocket优先，自动降级到轮询
+            transports: ['polling', 'websocket'],  // 轮询优先，更稳定；自动升级到 WebSocket
             reconnection: true,
-            reconnectionAttempts: Infinity,         // 无限重试
-            reconnectionDelay: 1000,                // 首次重连延迟 1s
-            reconnectionDelayMax: 10000,            // 最大重连延迟 10s（指数退避）
-            randomizationFactor: 0.3,               // ±30% 随机抖动，避免重连风暴
-            timeout: 20000,                         // 连接超时 20s
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 500,
+            reconnectionDelayMax: 5000,
+            randomizationFactor: 0.5,
+            timeout: 10000,
+            upgrade: true,
         });
 
-        // 重连事件日志
+        // ---- Socket.IO 底层重连事件 ----
         this.socket.io.on('reconnect_attempt', (attempt) => {
             console.log(`🔄 重连尝试 #${attempt}...`);
+            this._reconnecting = true;
+            if (this.callbacks.reconnecting) this.callbacks.reconnecting(attempt);
         });
+
         this.socket.io.on('reconnect', () => {
-            console.log('✅ 重连成功');
+            console.log('✅ Socket 重连成功，重新加入房间...');
+            this._reconnecting = false;
+            this._rejoinAfterReconnect();
         });
+
         this.socket.io.on('reconnect_error', (err) => {
             console.warn('⚠️ 重连失败:', err.message);
         });
+
         this.socket.io.on('reconnect_failed', () => {
-            console.error('❌ 所有重连尝试失败');
+            console.error('❌ 重连彻底失败');
+            this._reconnecting = false;
+            if (this.callbacks.reconnectFailed) this.callbacks.reconnectFailed();
         });
 
+        // ---- 应用层事件 ----
         this.socket.on('connect', () => {
             console.log('🔗 已连接:', this.socket.id);
-
-            // 自动尝试重连已保存的房间
-            const saved = Session.load();
-            if (saved && saved.roomCode && saved.playerId) {
-                console.log('🔄 自动重连...');
-                this.socket.emit('reconnect_room', {
-                    roomCode: saved.roomCode,
-                    playerId: saved.playerId,
-                }, (res) => {
-                    if (res.ok) {
-                        this.myPlayerId = res.playerId;
-                        if (this.callbacks.reconnected) this.callbacks.reconnected(res);
-                    } else {
-                        // playerId 重连失败，尝试按昵称重连
-                        if (saved.nickname) {
-                            this.socket.emit('rejoin_room', {
-                                roomCode: saved.roomCode,
-                                nickname: saved.nickname,
-                            }, (res2) => {
-                                if (res2.ok) {
-                                    this.myPlayerId = res2.playerId;
-                                    Session.save(saved.roomCode, res2.playerId, saved.nickname);
-                                    if (this.callbacks.reconnected) this.callbacks.reconnected(res2);
-                                } else {
-                                    Session.clear();
-                                    if (this.callbacks.reconnectFailed) this.callbacks.reconnectFailed();
-                                }
-                            });
-                        } else {
-                            Session.clear();
-                            if (this.callbacks.reconnectFailed) this.callbacks.reconnectFailed();
-                        }
-                    }
-                });
-                return;
+            // 首次连接才触发 connect 回调；重连走 _rejoinAfterReconnect
+            if (!this._reconnecting) {
+                const saved = Session.load();
+                if (saved && saved.roomCode && saved.playerId) {
+                    this._rejoinAfterReconnect();
+                    return;
+                }
+                if (this.callbacks.connect) this.callbacks.connect();
             }
-
-            if (this.callbacks.connect) this.callbacks.connect();
         });
 
-        this.socket.on('disconnect', () => {
-            console.log('🔌 已断开');
-            if (this.callbacks.disconnect) this.callbacks.disconnect();
+        this.socket.on('disconnect', (reason) => {
+            console.log('🔌 断开:', reason);
+            if (this.callbacks.disconnect) this.callbacks.disconnect(reason);
         });
 
         this.socket.on('room_state', (state) => {
@@ -111,6 +94,42 @@ const Network = {
         this.socket.on('error', (err) => {
             console.error('服务器错误:', err.message);
             if (this.callbacks.error) this.callbacks.error(err);
+        });
+    },
+
+    /** Socket 重连后尝试重新加入房间 */
+    _rejoinAfterReconnect() {
+        const saved = Session.load();
+        if (!saved || !saved.roomCode) return;
+
+        console.log('🔄 重新加入房间:', saved.roomCode);
+        this.socket.emit('reconnect_room', {
+            roomCode: saved.roomCode,
+            playerId: saved.playerId,
+        }, (res) => {
+            if (res.ok) {
+                this.myPlayerId = res.playerId;
+                console.log('✅ 重连成功');
+                if (this.callbacks.reconnected) this.callbacks.reconnected(res);
+            } else if (saved.nickname) {
+                // 尝试昵称重连
+                this.socket.emit('rejoin_room', {
+                    roomCode: saved.roomCode,
+                    nickname: saved.nickname,
+                }, (res2) => {
+                    if (res2.ok) {
+                        this.myPlayerId = res2.playerId;
+                        Session.save(saved.roomCode, res2.playerId, saved.nickname);
+                        if (this.callbacks.reconnected) this.callbacks.reconnected(res2);
+                    } else {
+                        Session.clear();
+                        if (this.callbacks.reconnectFailed) this.callbacks.reconnectFailed();
+                    }
+                });
+            } else {
+                Session.clear();
+                if (this.callbacks.reconnectFailed) this.callbacks.reconnectFailed();
+            }
         });
     },
 
@@ -204,7 +223,7 @@ const Network = {
     },
 };
 
-/** SessionStorage → localStorage 管理 — 掉线/刷新/关闭浏览器后恢复房间状态 */
+/** localStorage 管理 — 掉线/刷新/关闭浏览器后恢复房间状态 */
 const Session = {
     _key: 'pt_session',
 
@@ -214,8 +233,7 @@ const Session = {
                 roomCode, playerId, nickname,
                 timestamp: Date.now(),
             }));
-            console.log(`💾 Session 已保存: ${roomCode} / ${nickname} (pid=${playerId})`);
-        } catch (e) { console.warn('Session 保存失败:', e.message); }
+        } catch (e) {}
     },
 
     load() {
@@ -223,18 +241,16 @@ const Session = {
             const raw = localStorage.getItem(this._key);
             if (!raw) return null;
             const data = JSON.parse(raw);
-            // 2 小时内有效（原 30 分钟，延长以适应长游戏局）
-            if (Date.now() - data.timestamp > 2 * 60 * 60 * 1000) {
+            // 30 分钟内有效
+            if (Date.now() - data.timestamp > 30 * 60 * 1000) {
                 localStorage.removeItem(this._key);
-                console.log('🗑️ Session 已过期，已清除');
                 return null;
             }
-            console.log(`📂 Session 已加载: ${data.roomCode} / ${data.nickname}`);
             return data;
-        } catch (e) { console.warn('Session 加载失败:', e.message); return null; }
+        } catch (e) { return null; }
     },
 
     clear() {
-        try { localStorage.removeItem(this._key); console.log('🧹 Session 已清除'); } catch (e) { /* ignore */ }
+        try { localStorage.removeItem(this._key); } catch (e) {}
     },
 };
