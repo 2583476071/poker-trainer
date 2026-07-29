@@ -1265,11 +1265,11 @@ class PokerGame {
                 this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
                 if (this.currentPlayerIndex < 0) {
                     this.advancePhase();
-                    if (this.phase !== 'hand_over') setTimeout(() => this.autoAdvance(), 0);
+                    if (this.phase !== 'hand_over') setTimeout(() => this.autoAdvance(), 100);
                     return;
                 }
                 this.notifyState();
-                setTimeout(() => this.autoAdvance(), 0);
+                setTimeout(() => this.autoAdvance(), 100);
                 return;
             }
 
@@ -1280,7 +1280,7 @@ class PokerGame {
                     setTimeout(() => {
                         // doAction 内部已处理 notifyState + autoAdvance
                         this.doAction(this.currentPlayerIndex, decision.action, decision.multiplier);
-                    }, 0);
+                    }, 800 + Math.random() * 400);
                 } else {
                     // AI 已All-in或不需要行动 → 标记完成，跳过
                     current.needsToAct = false;
@@ -1291,7 +1291,7 @@ class PokerGame {
                     } else {
                         this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
                         this.notifyState();
-                        setTimeout(() => this.autoAdvance(), 0);
+                        setTimeout(() => this.autoAdvance(), 100);
                     }
                 }
             } else if (current.isHuman && this.isActive(current)) {
@@ -1305,7 +1305,7 @@ class PokerGame {
                     } else {
                         this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
                         this.notifyState();
-                        setTimeout(() => this.autoAdvance(), 0);
+                        setTimeout(() => this.autoAdvance(), 100);
                     }
                 } else {
                     // 真人的回合，等待
@@ -1315,7 +1315,7 @@ class PokerGame {
             }
         };
 
-        setTimeout(step, 300);
+        setTimeout(step, 100);
     }
 
     // ========== UI 通信 ==========
