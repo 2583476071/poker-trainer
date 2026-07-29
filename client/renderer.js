@@ -8,6 +8,7 @@
 
 const Renderer = {
     _seatCount: 9,
+    _prevCommunityCount: 0,
 
     /** 初始化座位 DOM */
     initSeats() {
@@ -148,12 +149,16 @@ const Renderer = {
             }
         }
 
-        // 公共牌
+        // 公共牌 — 仅新增的牌播放发牌动画
         const commDiv = document.getElementById('communityCards');
+        const prevCount = this._prevCommunityCount;
+        const currCount = state.communityCards.length;
+        this._prevCommunityCount = (state.phase === 'preflop' && currCount === 0) ? 0 : currCount;
         let commHTML = '';
         for (let i = 0; i < 5; i++) {
-            if (i < state.communityCards.length) {
-                commHTML += this._renderBigCard(state.communityCards[i], false);
+            if (i < currCount) {
+                const dealingClass = (i >= prevCount) ? ' dealing' : '';
+                commHTML += this._renderBigCard(state.communityCards[i], false).replace('card ', 'card' + dealingClass + ' ');
             } else {
                 commHTML += '<div class="card-placeholder"></div>';
             }
@@ -364,11 +369,14 @@ const Renderer = {
         log.scrollTop = log.scrollHeight;
     },
 
+    _showdownCountdown: null,
+
     _updateShowdownPanel(state) {
         const panel = document.getElementById('showdownPanel');
         if (!panel) return;
         if (state.phase !== 'hand_over' || state.winners.length === 0) {
             panel.classList.add('hidden');
+            if (this._showdownCountdown) { clearInterval(this._showdownCountdown); this._showdownCountdown = null; }
             return;
         }
         panel.classList.remove('hidden');
@@ -404,8 +412,26 @@ const Renderer = {
 
         document.getElementById('sdPot').textContent = `底池: ${state.pot}`;
 
+        // 10秒倒计时
+        let secLeft = 10;
+        const cdEl = document.getElementById('sdCountdown');
+        if (cdEl) cdEl.textContent = `${secLeft}秒后自动进入下一局`;
+        if (this._showdownCountdown) clearInterval(this._showdownCountdown);
+        this._showdownCountdown = setInterval(() => {
+            secLeft--;
+            if (cdEl) {
+                if (secLeft <= 0) cdEl.textContent = '即将开始...';
+                else cdEl.textContent = `${secLeft}秒后自动进入下一局`;
+            }
+            if (secLeft <= 0 && this._showdownCountdown) {
+                clearInterval(this._showdownCountdown);
+                this._showdownCountdown = null;
+            }
+        }, 1000);
+
         document.getElementById('sdNextBtn').onclick = () => {
             panel.classList.add('hidden');
+            if (this._showdownCountdown) { clearInterval(this._showdownCountdown); this._showdownCountdown = null; }
             this._logEntries = [];
             const log = document.getElementById('actionLog');
             if (log) log.innerHTML = '';

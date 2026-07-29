@@ -11,6 +11,15 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
+// 全局异常捕获 — 记录错误但不崩进程（防止 AI 决策中的 bug 炸服）
+process.on('uncaughtException', (err) => {
+    console.error('💥 未捕获异常:', err.message);
+    console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('💥 未处理的Promise拒绝:', reason);
+});
+
 const { GameManager } = require('./game_manager.js');
 const { setupNetworkHandlers } = require('./network_handler.js');
 

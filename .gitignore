@@ -5,3 +5,7 @@ package-lock.json
 *.local.txt
 .env
 .env.local
+
+# 部署脚本含敏感凭据，禁止提交
+deploy/sftp_upload.js
+deploy/ssh_deploy.js

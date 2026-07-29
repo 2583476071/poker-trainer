@@ -154,6 +154,21 @@ body {
     border-radius: 6px;
 }
 
+/* 公牌发牌动画（通过 JS 添加 .dealing 类触发，避免重复渲染时重播） */
+#communityCards .card.dealing {
+    animation: cardDealIn 0.45s ease-out both;
+}
+#communityCards .card.dealing:nth-child(1) { animation-delay: 0.05s; }
+#communityCards .card.dealing:nth-child(2) { animation-delay: 0.20s; }
+#communityCards .card.dealing:nth-child(3) { animation-delay: 0.35s; }
+#communityCards .card.dealing:nth-child(4) { animation-delay: 0.15s; }
+#communityCards .card.dealing:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes cardDealIn {
+    from { transform: translateY(-30px) scale(0.6); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
 /* ===== 底池显示 ===== */
 #potDisplay {
     position: absolute;
@@ -1169,6 +1184,10 @@ body {
 .sd-player-card .sd-lose { color: #e74c3c; }
 .sd-player-card .sd-trophy { font-size: 24px; }
 #showdownPanel .sd-pot { font-size: 16px; color: #aaa; margin-top: 8px; }
+#showdownPanel .sd-countdown {
+    font-size: 13px; color: #888; margin-top: 10px;
+    animation: fadeIn 0.5s ease;
+}
 #showdownPanel .sd-next-btn {
     margin-top: 16px; padding: 12px 36px; font-size: 16px;
     background: #2d6a4f; color: #eee; border: none;

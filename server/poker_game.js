@@ -423,18 +423,22 @@ class PokerGame {
             return;
         }
 
+        let dealtCards = false;
         switch (this.phase) {
             case 'preflop':
                 this.phase = 'flop';
                 this.communityCards.push(...draw(this.deck, 3));
+                dealtCards = true;
                 break;
             case 'flop':
                 this.phase = 'turn';
                 this.communityCards.push(...draw(this.deck, 1));
+                dealtCards = true;
                 break;
             case 'turn':
                 this.phase = 'river';
                 this.communityCards.push(...draw(this.deck, 1));
+                dealtCards = true;
                 break;
             case 'river':
                 this.phase = 'showdown';
@@ -444,21 +448,42 @@ class PokerGame {
 
         const firstToAct = this.nextActivePlayerIndex(this.dealerIndex);
 
+        // 全员 all-in → 逐张发牌（每张 1.2s 动画间隔），而非瞬间全发
         if (this.countCanActPlayers() === 0) {
-            while (this.phase !== 'showdown' && this.phase !== 'hand_over') {
-                const cardsNeeded = this.phase === 'preflop' ? 3 : (this.phase === 'flop' || this.phase === 'turn' ? 1 : 0);
-                if (cardsNeeded > 0) {
-                    this.communityCards.push(...draw(this.deck, cardsNeeded));
-                }
-                const nextPhase = { preflop:'flop', flop:'turn', turn:'river', river:'showdown' };
-                this.phase = nextPhase[this.phase];
-                if (this.phase === 'showdown') { this.doShowdown(); return; }
-            }
+            this.currentPlayerIndex = firstToAct;
+            this.notifyState();
+            this._dealRemainingCards();
+            return;
         }
 
         this.currentPlayerIndex = firstToAct;
         this.notifyState();
-        this.autoAdvance();
+
+        // 发了新公牌 → 停顿让玩家看清
+        const delay = dealtCards ? 1500 : 100;
+        setTimeout(() => this.autoAdvance(), delay);
+    }
+
+    /** 逐张发出剩余公牌（带延迟动画，用于全员 all-in 场景） */
+    _dealRemainingCards() {
+        if (this.phase === 'showdown' || this.phase === 'hand_over') return;
+
+        const nextPhaseMap = { preflop: 'flop', flop: 'turn', turn: 'river', river: 'showdown' };
+        const cardsNeeded = this.phase === 'preflop' ? 3 : (this.phase === 'flop' || this.phase === 'turn' ? 1 : 0);
+
+        if (cardsNeeded > 0 && this.deck.length >= cardsNeeded) {
+            this.communityCards.push(...draw(this.deck, cardsNeeded));
+        }
+        this.phase = nextPhaseMap[this.phase];
+
+        if (this.phase === 'showdown') {
+            this.notifyState();
+            setTimeout(() => this.doShowdown(), 1200);
+            return;
+        }
+
+        this.notifyState();
+        setTimeout(() => this._dealRemainingCards(), 1200);
     }
 
     doShowdown() {
@@ -769,9 +794,12 @@ class PokerGame {
         const betPotRatio = this.getBetPotRatio();
         const isMassiveOverbet = betPotRatio > 3;
         const overbetPenalty = isMassiveOverbet ? Math.min(0.4, (betPotRatio - 3) * 0.06) : 0;
+        const foldThreshold = (Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty)
+                              * (1.0 + boardStrat.bluffWeight * 0.3);
 
         const riverTier = this._getRiverTier(player);
         const isRiver = this.phase === 'river';
+        const isTurn = this.phase === 'turn';
         const riverPolarized = isRiver && riverTier !== null && riverTier <= 2;
         const raiseCapped = this.raiseCountThisRound >= 5 || riverPolarized;
 
@@ -905,7 +933,6 @@ class PokerGame {
 
         // 5g. 飘浮跟注（Float）：翻牌有位置时跟注，转牌被过牌就下注偷
         const isFlop = this.phase === 'flop';
-        const isTurn = this.phase === 'turn';
         const floatEligible = isFlop && !isCheckedToMe && position !== 'early' && toCall > 0
                             && toCall <= player.chips * 0.3 && activeCount <= 3;
         if (floatEligible && effectiveStrength < 0.45 && effectiveStrength > 0.2) {
@@ -978,8 +1005,6 @@ class PokerGame {
 
         // 动态阈值
         const valueFusion = rangeAdv * 0.4 + blockerScore * 0.3 + boardStrat.valueWeight * 0.3;
-        const foldThreshold = (Math.min(gtoFoldThreshold, profile.tightness * 0.55) + overbetPenalty)
-                              * (1.0 + boardStrat.bluffWeight * 0.3);
         const betThreshold = Math.max(0.22, (0.38 - profile.aggression * 0.12) - rangeBoost - valueFusion * 0.15);
         const raiseThreshold = Math.max(isRiver ? 0.55 : 0.40,
             (0.72 - profile.aggression * 0.28) - rangeBoost + this.raiseCountThisRound * 0.08 + (isRiver ? 0.10 : 0)
@@ -1064,7 +1089,7 @@ class PokerGame {
                         if (this.currentPlayerIndex >= 0) {
                             this.doAction(this.currentPlayerIndex, decision.action, decision.multiplier);
                         }
-                    }, 800 + Math.random() * 400);
+                    }, 1200 + Math.random() * 800);
                 } else {
                     current.needsToAct = false;
                     current.hasActedThisRound = true;
@@ -1124,14 +1149,14 @@ class PokerGame {
 
         this._rebuysLeft--;
 
-        // 恢复玩家
+        // 恢复玩家（本局暂不参与，下局 startNewHand 统一重置 isFolded）
         this.eliminatedPlayers = this.eliminatedPlayers.filter(id => id !== playerId);
         player.chips = this.startingChips;
-        player.isFolded = false;
+        player.isFolded = true;       // 本局不参与行动
         player.isAllIn = false;
         player.currentBet = 0;
         player.totalBetThisHand = 0;
-        player.needsToAct = true;
+        player.needsToAct = false;    // 下局才发牌行动
         player.hasActedThisRound = false;
 
         console.log(`💰 ${player.name} 补码，剩余全局次数: ${this._rebuysLeft}`);
@@ -1433,7 +1458,7 @@ class PokerGame {
                 if (this.phase === 'hand_over') {
                     this.nextHand();
                 }
-            }, 5000);
+            }, 10000);
         }
 
         // 通知观战者（通过 game_manager 的 _spectatorCallback）

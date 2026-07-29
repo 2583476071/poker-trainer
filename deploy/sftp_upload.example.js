@@ -1,4 +1,11 @@
-/* SFTP upload script */
+/* ============================================================
+ * deploy/sftp_upload.example.js — SFTP 文件上传（示例）
+ *
+ * 使用前复制为 sftp_upload.js 并填入真实凭据：
+ *   cp deploy/sftp_upload.example.js deploy/sftp_upload.js
+ *
+ * sftp_upload.js 已在 .gitignore 中，不会被提交到仓库。
+ * ============================================================ */
 const { Client } = require('ssh2');
 const fs = require('fs');
 const path = require('path');
@@ -49,10 +56,20 @@ conn.on('ready', () => {
     });
 });
 
+// 从环境变量读取凭据（不回显到终端）
+const HOST = process.env.POKER_HOST || '你的服务器IP';
+const USER = process.env.POKER_USER || 'root';
+const PASS = process.env.POKER_PASS || '你的密码';
+
+if (!process.env.POKER_HOST || !process.env.POKER_PASS) {
+    console.warn('⚠️  未设置环境变量，使用默认值（可能不正确）');
+    console.warn('   建议: export POKER_HOST=你的IP POKER_PASS=你的密码');
+}
+
 conn.connect({
-    host: '8.148.232.155',
+    host: HOST,
     port: 22,
-    username: 'root',
-    password: 'Jki@13469291161',
+    username: USER,
+    password: PASS,
     readyTimeout: 10000,
 });
