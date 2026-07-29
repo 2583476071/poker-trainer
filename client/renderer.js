@@ -264,8 +264,7 @@ const Renderer = {
     _updateButtons(state) {
         // 观战者不显示任何操作按钮
         if (state.isSpectator) {
-            const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaiseMin', 'btnRaise33', 'btnRaise50',
-                         'btnRaise67', 'btnRaise100', 'btnAllIn', 'btnNext', 'btnLeaveGame'];
+            const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise', 'btnAllIn', 'btnNext', 'btnLeaveGame', 'inputRaise'];
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
@@ -274,8 +273,7 @@ const Renderer = {
             return;
         }
 
-        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaiseMin', 'btnRaise33', 'btnRaise50',
-                     'btnRaise67', 'btnRaise100', 'btnAllIn', 'btnNext'];
+        const ids = ['btnFold', 'btnCheck', 'btnCall', 'btnRaise', 'btnAllIn', 'btnNext', 'inputRaise'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
@@ -305,11 +303,13 @@ const Renderer = {
             btn.classList.remove('hidden');
             btn.textContent = '跟注 ' + (state.toCall || '');
         }
-        if (actions.includes('raise_min')) document.getElementById('btnRaiseMin').classList.remove('hidden');
-        if (actions.includes('raise_33')) document.getElementById('btnRaise33').classList.remove('hidden');
-        if (actions.includes('raise_50')) document.getElementById('btnRaise50').classList.remove('hidden');
-        if (actions.includes('raise_67')) document.getElementById('btnRaise67').classList.remove('hidden');
-        if (actions.includes('raise_100')) document.getElementById('btnRaise100').classList.remove('hidden');
+        if (actions.includes('raise')) {
+            document.getElementById('inputRaise').classList.remove('hidden');
+            document.getElementById('btnRaise').classList.remove('hidden');
+            const input = document.getElementById('inputRaise');
+            input.min = state.minRaise || 0;
+            input.placeholder = '加注到(≥' + (state.minRaise || 0) + ')';
+        }
         if (actions.includes('allin')) document.getElementById('btnAllIn').classList.remove('hidden');
     },
 

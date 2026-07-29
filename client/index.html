@@ -142,12 +142,8 @@
             <button class="btn-fold" id="btnFold">弃牌</button>
             <button class="btn-check" id="btnCheck">过牌</button>
             <button class="btn-call" id="btnCall">跟注</button>
-            <button class="btn-raise" id="btnRaiseMin">最小</button>
-            <button class="btn-raise" id="btnRaise33">1/3池</button>
-            <button class="btn-raise" id="btnRaise50">半池</button>
-            <button class="btn-raise" id="btnRaise67">2/3池</button>
-            <button class="btn-raise" id="btnRaise100">满池</button>
-            <input type="number" id="inputRaise" placeholder="自定义" style="width:80px;padding:6px 8px;font-size:15px;border-radius:6px;border:1px solid #e65100;background:#1a1a2e;color:#fff;text-align:center;" step="100" min="0">
+            <input type="number" id="inputRaise" placeholder="加注到" step="100" min="0" style="width:100px;padding:10px 12px;font-size:16px;border-radius:8px;border:2px solid #e65100;background:#1a1a2e;color:#ff9800;text-align:center;font-weight:bold;">
+            <button class="btn-raise" id="btnRaise">加注</button>
             <button class="btn-allin" id="btnAllIn">All-in</button>
             <button class="btn-next hidden" id="btnNext">下一局 ▶</button>
             <button class="btn-leave hidden" id="btnLeaveGame">🚪 退出房间</button>
@@ -314,18 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('btnFold').addEventListener('click', () => Network.sendAction('fold'));
 document.getElementById('btnCheck').addEventListener('click', () => Network.sendAction('check'));
 document.getElementById('btnCall').addEventListener('click', () => Network.sendAction('call'));
-document.getElementById('btnRaiseMin').addEventListener('click', () => Network.sendAction('raise', 0));
-document.getElementById('btnRaise33').addEventListener('click', () => Network.sendAction('raise', 0.33));
-document.getElementById('btnRaise50').addEventListener('click', () => Network.sendAction('raise', 0.5));
-document.getElementById('btnRaise67').addEventListener('click', () => Network.sendAction('raise', 0.67));
-document.getElementById('btnRaise100').addEventListener('click', () => Network.sendAction('raise', 1.0));
-// 自定义加注：输入金额回车或失焦时触发
-function submitCustomRaise() {
+// 加注按钮 + 回车
+function doRaise() {
     const val = parseInt(document.getElementById('inputRaise').value);
-    if (val > 0) Network.sendAction('custom_raise', val);
-    document.getElementById('inputRaise').value = '';
+    if (val > 0) Network.sendAction('raise', val);
 }
-document.getElementById('inputRaise').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCustomRaise(); });
+document.getElementById('btnRaise').addEventListener('click', doRaise);
+document.getElementById('inputRaise').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRaise(); });
 document.getElementById('btnAllIn').addEventListener('click', () => Network.sendAction('allin'));
 document.getElementById('btnNext').addEventListener('click', () => Network.nextHand());
 // 接管按钮（动态生成，用事件委托）：支持替换AI + 加入空位

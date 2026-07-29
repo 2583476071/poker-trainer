@@ -327,55 +327,17 @@ class PokerGame {
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
-    doCustomRaise(p, raiseTo) {
-        raiseTo = Math.round(raiseTo / 100) * 100;
-        const needed = raiseTo - p.currentBet;
-        const additional = Math.floor(Math.min(needed, p.chips));
-        p.chips -= additional;
-        p.currentBet += additional;
-        p.totalBetThisHand += additional;
-        this.currentBetLevel = p.currentBet;
-        if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
-        if (p.chips <= 0) p.isAllIn = true;
-        this.raiseCountThisRound++;
-
-        for (const other of this.players) {
-            if (other.id !== p.id && this.isActive(other) && !other.isAllIn) {
-                other.needsToAct = true;
-                other.hasActedThisRound = false;
-            }
-        }
-
-        p.needsToAct = false;
-        p.hasActedThisRound = true;
-        this.message = `${p.name} 加注到 ${p.currentBet}`;
-        this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
-        if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
-
-        if (this.isBettingRoundOver()) {
-            this.advancePhase();
-        } else {
-            this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
-            this.notifyState();
-            this.autoAdvance();
-        }
-    }
-
-    doRaise(p, fraction) {
-        // fraction: 0=最小加注, 0.33=1/3池, 0.5=半池, 1.0=满池; AI 传 BB 数
+    doRaise(p, amount) {
+        // amount: 人类传绝对加注到金额, AI 传 BB 倍数
         const pot = totalPot(this.players);
         let raiseTo;
-        if (fraction === 0) {
-            // 最小加注（1BB）
-            raiseTo = this.currentBetLevel + this.minRaise;
-        } else if (fraction <= 5 && fraction >= 0.1) {
-            // 人类：底池比例
-            const raiseBy = Math.floor(pot * fraction);
-            raiseTo = this.currentBetLevel + raiseBy;
+        if (amount > 100) {
+            // 人类：绝对金额
+            raiseTo = Math.round(amount / 100) * 100;
             raiseTo = Math.max(raiseTo, this.currentBetLevel + this.minRaise);
         } else {
             // AI：BB 倍数
-            const n = Math.max(1, Math.min(5, Math.round(fraction || 1)));
+            const n = Math.max(1, Math.min(5, Math.round(amount || 1)));
             raiseTo = this.currentBetLevel + n * this.bigBlindAmount;
         }
         raiseTo = Math.min(raiseTo, this.currentBetLevel + p.chips + p.currentBet);
@@ -386,6 +348,7 @@ class PokerGame {
         p.currentBet += additional;
         p.totalBetThisHand += additional;
         this.currentBetLevel = p.currentBet;
+        this.minRaise = Math.max(this.minRaise, additional);
         if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
         if (p.chips <= 0) p.isAllIn = true;
         this.raiseCountThisRound++;
@@ -1316,14 +1279,6 @@ class PokerGame {
         // 清除超时
         if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
 
-        // 自定义加注：multiplier 是绝对加注到金额
-        if (action === 'custom_raise') {
-            const amount = Math.round(multiplier / 100) * 100;
-            if (amount < this.currentBetLevel + this.minRaise || amount > p.chips + p.currentBet) return false;
-            this.doCustomRaise(p, amount);
-            return true;
-        }
-
         return this.doAction(idx, action, multiplier);
     }
 
@@ -1384,11 +1339,11 @@ class PokerGame {
         if (isMyTurn) {
             const toCall = this.currentBetLevel - viewer.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_min', 'raise_33', 'raise_50', 'raise_67', 'raise_100', 'allin'];
+                availableActions = ['fold', 'check', 'raise', 'allin'];
             } else if (toCall >= viewer.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
-                availableActions = ['fold', 'call', 'raise_1bb', 'raise_2bb', 'raise_3bb', 'raise_4bb', 'raise_5bb', 'allin'];
+                availableActions = ['fold', 'call', 'raise', 'allin'];
             }
         }
 
@@ -1435,6 +1390,7 @@ class PokerGame {
             currentPlayerId: (this.currentPlayerIndex >= 0 && this.currentPlayerIndex < this.players.length) ? this.players[this.currentPlayerIndex].id : null,
             isMyTurn,
             availableActions,
+            minRaise: isMyTurn ? (this.currentBetLevel + this.minRaise) : 0,
             toCall: isMyTurn ? Math.max(0, this.currentBetLevel - viewer.currentBet) : 0,
             handNumber: this.handNumber,
             winners: this.winners.map(w => ({

@@ -334,18 +334,14 @@ class PokerGame {
         this.lastAction = { playerName: p.name, playerId: p.id, action: 'call', amount: callAmount };
     }
 
-    doRaise(p, fraction) {
-        // fraction: 0=最小加注, 0.33=1/3池, 0.5=半池, 1.0=满池; AI 传 BB 数
-        const pot = totalPot(this.players);
+    doRaise(p, amount) {
+        // amount: 人类传绝对加注到金额, AI 传 BB 倍数
         let raiseTo;
-        if (fraction === 0) {
-            raiseTo = this.currentBetLevel + this.minRaise;
-        } else if (fraction <= 5 && fraction >= 0.1) {
-            const raiseBy = Math.floor(pot * fraction);
-            raiseTo = this.currentBetLevel + raiseBy;
+        if (amount > 100) {
+            raiseTo = Math.round(amount / 100) * 100;
             raiseTo = Math.max(raiseTo, this.currentBetLevel + this.minRaise);
         } else {
-            const n = Math.max(1, Math.min(5, Math.round(fraction || 1)));
+            const n = Math.max(1, Math.min(5, Math.round(amount || 1)));
             raiseTo = this.currentBetLevel + n * this.bigBlindAmount;
         }
         raiseTo = Math.min(raiseTo, this.currentBetLevel + p.chips + p.currentBet);
@@ -356,6 +352,7 @@ class PokerGame {
         p.currentBet += additional;
         p.totalBetThisHand += additional;
         this.currentBetLevel = p.currentBet;
+        this.minRaise = Math.max(this.minRaise, additional);
         if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
         if (p.chips <= 0) p.isAllIn = true;
 
@@ -1339,11 +1336,11 @@ class PokerGame {
         if (isHumanTurn) {
             const toCall = this.currentBetLevel - human.currentBet;
             if (toCall === 0) {
-                availableActions = ['fold', 'check', 'raise_min', 'raise_33', 'raise_50', 'raise_67', 'raise_100', 'allin'];
+                availableActions = ['fold', 'check', 'raise', 'allin'];
             } else if (toCall >= human.chips) {
                 availableActions = ['fold', 'allin'];
             } else {
-                availableActions = ['fold', 'call', 'raise_1bb', 'raise_2bb', 'raise_3bb', 'raise_4bb', 'raise_5bb', 'allin'];
+                availableActions = ['fold', 'call', 'raise', 'allin'];
             }
         }
 
@@ -1390,6 +1387,7 @@ class PokerGame {
             })),
             lastAction: this.lastAction,
             currentRoundRaiserId: this.currentRoundRaiserId,
+            minRaise: this.currentBetLevel + this.minRaise,
             isGameOver: this.phase === 'game_over',
             canRebuy: this.eliminatedPlayers.includes(0) && this._rebuysLeft > 0,
             rebuysLeft: this._rebuysLeft,
@@ -1450,45 +1448,8 @@ class PokerGame {
     humanAction(action, multiplier) {
         if (this.currentPlayerIndex !== 0) return;
         if (!this.players[0].needsToAct) return;
-        if (action === 'custom_raise') {
-            const amount = Math.round(multiplier / 100) * 100;
-            if (amount < this.currentBetLevel + this.minRaise || amount > this.players[0].chips + this.players[0].currentBet) return;
-            this.doCustomRaise(this.players[0], amount);
-            return;
-        }
         this.doAction(0, action, multiplier);
         // doAction 内部已调用 notifyState + autoAdvance，这里不重复调用
-    }
-
-    doCustomRaise(p, raiseTo) {
-        raiseTo = Math.round(raiseTo / 100) * 100;
-        const needed = raiseTo - p.currentBet;
-        const additional = Math.floor(Math.min(needed, p.chips));
-        p.chips -= additional;
-        p.currentBet += additional;
-        p.totalBetThisHand += additional;
-        this.currentBetLevel = p.currentBet;
-        if (this.phase === 'preflop') this.preflopRaiserIndex = p.id;
-        if (p.chips <= 0) p.isAllIn = true;
-        this.raiseCountThisRound++;
-        for (const other of this.players) {
-            if (other.id !== p.id && this.isActive(other) && !other.isAllIn) {
-                other.needsToAct = true;
-                other.hasActedThisRound = false;
-            }
-        }
-        p.needsToAct = false;
-        p.hasActedThisRound = true;
-        this.message = `${p.name} 加注到 ${p.currentBet}`;
-        this.lastAction = { playerName: p.name, playerId: p.id, action: 'raise', amount: p.currentBet };
-        if (this.currentRoundRaiserId === -1) this.currentRoundRaiserId = p.id;
-        if (this.isBettingRoundOver()) {
-            this.advancePhase();
-        } else {
-            this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
-            this.notifyState();
-            this.autoAdvance();
-        }
     }
 
     /** 开始下一局 */
