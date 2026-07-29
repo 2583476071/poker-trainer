@@ -1048,11 +1048,11 @@ class PokerGame {
                 this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
                 if (this.currentPlayerIndex < 0) {
                     this.advancePhase();
-                    if (this.phase !== 'hand_over') setTimeout(() => this.autoAdvance(), 300);
+                    if (this.phase !== 'hand_over') setTimeout(() => this.autoAdvance(), 0);
                     return;
                 }
                 this.notifyState();
-                setTimeout(() => this.autoAdvance(), 200);
+                setTimeout(() => this.autoAdvance(), 0);
                 return;
             }
 
@@ -1064,7 +1064,7 @@ class PokerGame {
                         if (this.currentPlayerIndex >= 0) {
                             this.doAction(this.currentPlayerIndex, decision.action, decision.multiplier);
                         }
-                    }, 1500 + Math.random() * 1000);
+                    }, 0);
                 } else {
                     current.needsToAct = false;
                     current.hasActedThisRound = true;
@@ -1073,7 +1073,7 @@ class PokerGame {
                     } else {
                         this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
                         this.notifyState();
-                        setTimeout(() => this.autoAdvance(), 200);
+                        setTimeout(() => this.autoAdvance(), 0);
                     }
                 }
             } else if (current.isHuman && this.isActive(current)) {
@@ -1086,7 +1086,7 @@ class PokerGame {
                     } else {
                         this.currentPlayerIndex = this.nextPlayerToAct(this.currentPlayerIndex);
                         this.notifyState();
-                        setTimeout(() => this.autoAdvance(), 200);
+                        setTimeout(() => this.autoAdvance(), 0);
                     }
                 } else {
                     // 等待人类操作
@@ -1098,7 +1098,7 @@ class PokerGame {
             }
         };
 
-        setTimeout(step, 300);
+        setTimeout(step, 0);
     }
 
     _startTurnTimeout(playerId) {
@@ -1262,7 +1262,7 @@ class PokerGame {
                 if (this.currentPlayerIndex === idx) {
                     this.doAction(idx, decision.action, decision.multiplier);
                 }
-            }, 1500);
+            }, 0);
         } else {
             this.notifyState();
         }
