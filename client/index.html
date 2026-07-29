@@ -151,6 +151,14 @@
     </div>
 </div>
 
+<!-- 重连遮罩 -->
+<div id="reconnectOverlay" class="hidden">
+    <div id="reconnectBox">
+        <div class="reconnect-spinner"></div>
+        <div id="reconnectText">正在重连...</div>
+    </div>
+</div>
+
 <!-- 回合倒计时条 -->
 <div id="turnTimer"></div>
 
@@ -256,47 +264,37 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('topMsg').textContent = '游戏结束！';
     });
 
-    // 重连成功
+    // ---- 重连 ----
+    Network.on('reconnecting', (attempt) => {
+        document.getElementById('reconnectOverlay').classList.remove('hidden');
+        document.getElementById('reconnectText').textContent = `正在重连... (第${attempt}次)`;
+    });
     Network.on('reconnected', (res) => {
-        console.log('✅ 重连成功');
+        document.getElementById('reconnectOverlay').classList.add('hidden');
         const saved = Session.load();
         if (saved) {
             document.getElementById('topRoomCode').textContent = '🏠 ' + saved.roomCode;
             document.getElementById('topRoomCode').dataset.code = saved.roomCode;
         }
-        if (res.state) {
-            // 直接回到游戏中
+        if (res && res.state) {
             Lobby.hide();
             Renderer.render(res.state);
         } else {
-            // 回到大厅
             Lobby.show();
-            Lobby._enterRoom(
-                Session.load()?.roomCode || '',
-                false,
-                '已重新连接'
-            );
+            Lobby._enterRoom(saved?.roomCode || '', false, '已重新连接');
         }
     });
-
-    // 重连失败 → 显示重新加入面板
     Network.on('reconnectFailed', () => {
+        document.getElementById('reconnectOverlay').classList.add('hidden');
         const saved = Session.load();
-        if (saved && saved.roomCode) {
+        if (saved?.roomCode) {
             Lobby.showRejoinPanel(saved.roomCode, saved.nickname || '玩家');
-        } else {
-            document.getElementById('topMsg').textContent = '⚠️ 连接断开，请刷新页面';
         }
     });
 
-    // 断线
+    // ---- 断线 ----
     Network.on('disconnect', (reason) => {
-        document.getElementById('topMsg').textContent = '⚠️ 连接断开，自动重连中...';
-    });
-
-    // 重连中
-    Network.on('reconnecting', (attempt) => {
-        document.getElementById('topMsg').textContent = `⚠️ 正在重连... (第${attempt}次)`;
+        document.getElementById('topMsg').textContent = '⚠️ 连接断开';
     });
 
     Network.on('roomClosed', () => {

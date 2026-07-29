@@ -5,8 +5,18 @@
 function setupNetworkHandlers(io, gameManager) {
     gameManager.setIO(io);
 
+    // 应用层心跳：每 10s 广播 ping
+    setInterval(() => {
+        io.emit('server_ping');
+    }, 10000);
+
     io.on('connection', (socket) => {
         console.log(`🔗 新连接: ${socket.id}`);
+
+        // 客户端心跳响应
+        socket.on('client_pong', () => {
+            // 收到即可，连接正常
+        });
 
         // ========== 房间操作 ==========
 
